@@ -1,0 +1,6 @@
+.DS_Store
+# these are scratches for local consumption
+local 
+*.spl
+nvimrc/scratchpads/
+nvimrc/todos/

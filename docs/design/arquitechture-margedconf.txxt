@@ -1,0 +1,96 @@
+                dodot's architectured
+                functional rolling over merged confs
+
+
+Functional, as much as possible
+
+    dodot's execution fits very well with functional programming, as there are
+    no UI, no deeply embedded hierachical domain of objects nor similar third
+    party libraries to leverage.
+
+    Hence, we will use a functionalish structure, that is, as functional as
+    reasonable, given that all we do is create side effects on user's systems.
+
+    We'll achieve this by using pure functions, and , instead of making changes
+    to a user's system as the program runs, we'll build a list of file system
+    operations to be ran. That is, the program will plan and accumulate all
+    that needs to be done, then do it in a isolated, small part of the code. As
+    long as we can keep the execution of this list bug free, we can have a high
+    degree of confidence on developing and testing functionally 99% of the
+    application.  More on this bellow.
+
+
+Execution Overview
+
+    Let's walkthrough what happens when a user runs: 
+
+        dodot deploy 
+
+    Since the command does not specify a pack, we'll deploy the entire dotfiles
+    root. The first step is to find where that is. 
+
+    Once we know where that it: 
+        - Get a list of pack candidates
+        - Validates these , which are now packs
+        - Deploy each pack
+
+    Both validating packs and which handlers to run in each map very well to
+    filters of files. 
+
+
+    dodot features configuration, as in behavior specification on several
+    levels: 
+
+        - The ones in dodot's core (say the list of available handlers)
+        - DOTFILES_ROOT configuration (same as user config)
+        - Pack configuration (a .dodot.toml file inside it.)
+        - Handler configuration (content in said file)
+
+    As expected newer configurations override previous ones, that is a pack
+    configuration will win over a user, which would win over dodot's defaults.
+
+    Hence, at various times we will collect configuration and merge it with the
+    current one, giving precedence to the new one.  
+
+
+    By running the filtering of dirs to pack candidates, from pack candidates
+    to packs , and packs handlers ,we'll end up with a hierarchical list of
+    handlers to run.
+
+    Once we have that, we'll "run" all these handlers but, instead of changing
+    the file system , we'll generate a big list of small fs operations.
+
+    Up to now we can keep the program fully functional, and hence, easy to test
+    and reason about.
+
+    We finally process the operations queue and thus finish our execution.
+
+
+    Now we have a good introduction to the various parts that make dodot work.
+
+    - dotfiles-root finder
+    - pack-candiates-searcher
+    - pack-verifiers
+    - configuration-fetcher
+    - configuration-merger
+    - handler-fecher
+    - handler-merger
+    - handler-runner
+    - fs-operation-runner
+
+    Ouside the obvious flow, from a user's request we have: 
+
+    - handler-config-loader: loads the handlers definitions.
+
+    This list is of dúbios utility, as the dotfiles root finder is a three line
+    thing, while the handler runner gets way more complicated.
+
+    
+
+    
+
+    
+
+
+
+
