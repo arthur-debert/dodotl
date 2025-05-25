@@ -1,4 +1,4 @@
-                dodot's architectured
+dodot's architectured
                 functional rolling over merged confs
 
 
@@ -64,6 +64,22 @@ Execution Overview
     and reason about.
 
     We finally process the operations queue and thus finish our execution.
+
+    **Error Handling during Execution:**
+    Should an error occur while the `fs-operation-runner` is executing operations for a specific pack,
+    the operations for that particular pack will be halted. However, `dodot` will attempt to
+    continue processing subsequent packs in a best-effort manner. Critical system-level errors,
+    such as "disk out of space," may halt the entire process. Detailed logging of all operations
+    and any errors encountered will be crucial for diagnostics.
+
+    **Rollback and Recovery:**
+    A deliberate design choice is to not implement an automatic rollback or "undeploy" feature.
+    Attempting to perfectly reverse all possible file system operations and handler actions
+    (e.g., script executions) is complex and can lead to a false sense of security, as not all
+    actions are truly reversible. Instead, `dodot` will focus on providing:
+        - Detailed logging of every change made.
+        - Temporary backups of any files that are deleted or moved during an operation.
+    This information will empower users to manually revert changes if necessary.
 
 
     Now we have a good introduction to the various parts that make dodot work.
@@ -180,10 +196,18 @@ On Abstract FS Operations
     trans pack operations are dependent , everything will break.
 
     This is no small detail. Looking at the use case in detail, the truth is
-    this will seldomly happen, and when it does, the end result is very similar
-    to running side effects at collection time. We are mindful of the
-    trade-off, but confident on the benefit. 
+    this will seldomly happen. The order of operations within a single pack's generated
+    list is maintained, but strict ordering guarantees across different packs are not
+    provided. When it does occur, the end result is very similar to running side
+    effects at collection time. We are mindful of the trade-off, but confident on
+    the benefit of the overall approach.
 
+    **Conflict Resolution:**
+    In the rare event that multiple packs attempt to manage the exact same target path
+    (e.g., two packs try to symlink different source files to `~/.config/app/config`),
+    the principle is that the last pack processed will "win," meaning its operation
+    will overwrite any previous ones for that specific path. However, well-structured
+    dotfiles and pack organization should generally prevent such direct conflicts.
 
 
 Triggers
@@ -196,7 +220,7 @@ Triggers
 Handlers
 
     Handler will be given the pack_data, with the trigger and config, and will
-    return the sythetic operations to be performed. 
+    return the sythetic operations to be performed.
 
 
 
