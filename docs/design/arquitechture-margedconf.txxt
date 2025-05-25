@@ -78,18 +78,127 @@ Execution Overview
     - handler-runner
     - fs-operation-runner
 
-    Ouside the obvious flow, from a user's request we have: 
+    Outside the obvious flow, from a user's request we have: 
 
     - handler-config-loader: loads the handlers definitions.
 
     This list is of dúbios utility, as the dotfiles root finder is a three line
     thing, while the handler runner gets way more complicated.
 
-    
+    Lets talk about the components in more detail .
 
-    
 
-    
+Dotfiles Root Finder
+
+    The simplest of things, it will look for a environment variable or the
+    current working directory. Returns the path to the dotfiles root.
+
+Pack Candidate Searcher
+
+    Given such path, this piece will generate a list of possible packs.  
+    It performs only minor, very crude checking. Thins like has to be a dir, we
+    have to have read aces to it's contents and it can't be empty.
+
+
+Master looper
+
+    Responsible for building the complete list of handlers to run. IT will run
+    the pack verifiers and end up with a handler queue to run.
+
+Pack Verifier
+
+    REcenving a validated path, from a file system perspecitive, the verifieer
+    will ensure that from the application logic, this is a pack. 
+
+    The first thing it does, is to check for a pack configuration file
+    (.dodot.toml). If one is there, it loads it. 
+
+    If the config request this to be excluded, that's it. That's all the
+    processing this will receive. We''ll log it's exclusion but go no further,
+    not even listing it's files. 
+
+    The reasons for this are: 
+        - Any processing done on a excluded package is gone to waste.
+        - Like it or not, we're about doing stuff with your files. Why risk any
+          bugs or issues at all?  
+        - Match user's expectations. Even listing the directory would break
+          this, as the user has specified: don't go here.
+
+    IF there is no exclusion request, it will then list the contents. If there
+    are no files besides the config one, there is nothing to do here as well.
+
+    At this point, we process all the data (path, config, contents) into a
+    pack_data object, which has reach information and will be the first
+    relevant data structure we'll use. 
+
+Handler Verifier
+
+    Each pack will loop through the list of available handlers. These will
+    check the pack_data , and decide if their trigger is there. If so, they
+    will return as active for that package.
+
+
+    When all packs have ran through handler verifiers we are left with a
+    hierachical list of handlers to run.
+
+Handler Runner
+
+    With the handler queue to be ran, it will execute: 
+
+        - setup operations: (like creating the directory in which shell aliases
+          will be linked from) and so on. These are a collective setup, not a
+          per handler thing.
+        - run each handler, wich returns an operations list.
+        - perform closing operations for group handlers.
+
+    Rebeber that up to now, we're not changing anything on disk. We have a
+    operations queue to be performed to a user's system, but nothing has
+    happens yet.
+
+    If we're running in dry-mode, for example, we can just output this and
+    we're done. 
+
+Operation Executioner
+
+    The piece to run the operation queue, which hopefully results in the user's
+    wishes.
+
+
+
+On Abstract FS Operations
+
+    Isolating all side efffect and keeping the code base 99% free of dealing
+    with actual file system has significant wins. Much easier to test, safer as
+    it constricts the risker parts of the code to a small isolated set of
+    primitives, dry runs for free and more. 
+
+    It does have drawbacks too. We can ignore the minor ones for now, and focus
+    on the big one: interdependence. 
+
+    Let me ilustrate. Say that operation 42 archives a directory. If operation
+    30 removed that directory, there is nothing for 42 to do.  That is, if
+    trans pack operations are dependent , everything will break.
+
+    This is no small detail. Looking at the use case in detail, the truth is
+    this will seldomly happen, and when it does, the end result is very similar
+    to running side effects at collection time. We are mindful of the
+    trade-off, but confident on the benefit. 
+
+
+
+Triggers
+
+    Trigers are functions that, given a pack_data, will run the merged config
+    and check if that content trigger that function. IF they do, the trigger
+    will filter the data triggered, that is , affected.   
+
+
+Handlers
+
+    Handler will be given the pack_data, with the trigger and config, and will
+    return the sythetic operations to be performed. 
+
+
 
 
 
