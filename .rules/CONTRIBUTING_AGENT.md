@@ -17,6 +17,7 @@ Your primary source of truth for the project's design, architecture, and API is 
 *   `docs/design/concepts-and-design.txxt`: The "why" of the project. Explains the core ideas and user-facing concepts.
 *   `docs/design/execution.txxt`: The "how" of the project. Outlines the implementation roadmap, milestones, and technical architecture. You must follow the phased implementation described here.
 *   `docs/design/apiv1.txxt`: The detailed specification for the v1 API, including data structures and the interfaces for Triggers, Power-ups, and Actions.
+* `docs/errors.txxt`How to handle errors
 
 All documentation uses the `.txxt` format, which is a simple, header-oriented plain text format. Maintain this style in any documentation changes.
 
@@ -62,6 +63,7 @@ If you need to create temporary files use the $PROJECT_ROOT/tmp for that, not th
 ## 8 Env vars
 
 We use .envrc    with direnv, so these are always available. Path names , when needed , should use those, too
+
 
 
 By following these guidelines, you will help build `dodot` into a robust, well-designed tool. 
