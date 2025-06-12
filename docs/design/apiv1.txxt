@@ -37,7 +37,7 @@
                 name = "string",        -- power-up identifier
                 process = function(matched_files, pack_path, options)
                     -- matched_files: array of {path, metadata} 
-                    -- Returns: array of Action objects
+                    -- Returns: array_of_actions, error_message_or_nil
                 end,
                 validate = function(matched_files, pack_path, options)
                     -- Returns: boolean, error_message
@@ -110,42 +110,38 @@
 
 4. Standard Power-ups
 
-    4.1 link_home
+    4.1 link
         
-        Creates symlinks in the user's home directory.
+        Creates symlinks to files and directories.
 
-            Actions produced: link_home
-            Options: overwrite, backup
+            Actions produced: link
+            Options: 
+                base = "home" | "xdg_config" (default: "home")
+                overwrite = boolean (default: false)
+                backup = boolean (default: false)
 
-    4.2 link_xdg
-        
-        Creates symlinks in ~/.config directory.
-
-            Actions produced: link_xdg  
-            Options: overwrite, backup
-
-    4.3 shell_profile
+    4.2 shell_profile
         
         Adds shell scripts to the user's profile.
 
             Actions produced: shell_source
             Options: shell_types, order
 
-    4.4 path_add
+    4.3 shell_add_path
         
-        Adds directories to PATH.
+        Adds directories to the shell's PATH.
 
-            Actions produced: path_add
+            Actions produced: shell_add_path
             Options: prepend, shell_types
 
-    4.5 homebrew
+    4.4 homebrew
         
         Installs packages via Homebrew.
 
             Actions produced: brew_install
             Options: update_existing, install_casks
 
-    4.6 script_runner
+    4.5 script_runner
         
         Executes setup scripts.
 
@@ -176,14 +172,14 @@
                 -- Executable directories
                 {
                     trigger = DirectoryTrigger.new("bin"),
-                    power_up = "path_add", 
+                    power_up = "shell_add_path", 
                     priority = 60
                 },
                 
                 -- Default symlink (lowest priority)
                 {
                     trigger = FileNameTrigger.new({".*"}),
-                    power_up = "link_home",
+                    power_up = "link",
                     priority = 10
                 }
             }
@@ -193,7 +189,7 @@
         Users can override matchers in .dodot.toml:
 
             [matchers]
-            [[matchers.custom]]
+            [[matchers.add]]
             trigger = {type = "file_name", patterns = ["packages.txt"]}
             power_up = "homebrew"
             priority = 85
@@ -272,10 +268,9 @@
 
     7.1 Action Types to fsynth Operations
         
-            link_home -> fsynth.op.symlink
-            link_xdg -> fsynth.op.symlink  
+            link -> fsynth.op.symlink
             shell_source -> fsynth.op.create_file + fsynth.op.symlink
-            path_add -> fsynth.op.create_file
+            shell_add_path -> fsynth.op.create_file
             brew_install -> fsynth.op.script_run
             script_run -> fsynth.op.script_run
 

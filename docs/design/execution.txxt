@@ -133,10 +133,12 @@ dodot Implementation and Execution
             - Validation and error handling
 
         M3.2 Core Power-ups
-            - link_home power-up (symlink to ~/)
-            - link_xdg power-up (symlink to ~/.config)
+            - link power-up (symlinking to home, xdg_config, etc.)
             - shell_profile power-up (shell integration)
-            - path_add power-up (PATH management)
+            - shell_add_path power-up (PATH management)
+            - Note: Shell-related power-ups will generate actions in this
+              milestone, but the underlying shell integration for executing
+              those actions is implemented in M4.
 
         M3.3 Action System
             - Action data structures

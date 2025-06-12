@@ -154,37 +154,25 @@ Power-Ups
 
     Each power-up knows how to deploy specific files in a pack, and are run by the presence of matchers.
 
-    Here are the power-ups:
+    Here are the standard power-ups:
 
         link:
-            This is the default power-up, it will symlink any file or directory
-            that is not matched by other matchers.
+            Creates symlinks for files/directories. This is the default for
+            unmatched files. Can target the user's home (`~`) or XDG config
+            (`~/.config`).
 
-        bin:
-            Adds the <pack>/bin directory to your PATH.
+        shell_add_path:
+            Adds a directory (like `bin`) to the shell's PATH.
 
-        Brewfile:
-            This will run a brewfile, installing the packages listed in it.
-            It will also install any cask packages.
+        homebrew:
+            Installs packages from a Brewfile.
 
-        alias:
-            This will add any aliases in the file to your shell.
-            It will also add any functions in the file to your shell.
+        shell_profile:
+            Sources shell scripts (like aliases or profile additions) into
+            the user's shell configuration.
 
-        profile(.sh):
-            This will add any profile in the file to your shell.
-            It will also add any functions in the file to your shell.
-
-        setup(.sh):
-            In case your pack has a setup.sh file, it will be run on first
-            access.
-
-        shell-completions:
-            This will add any shell completions in the file to your shell.
-            It will also add any functions in the file to your shell.
-
-    Each power-up gets triggered by matchers that recognize files or directories with the specified names. 
-    For the shell related ones, any shell extensions will work as well, such as .sh, .bash, or .zsh.
+        script_runner:
+            Executes setup scripts for one-time initialization tasks.
 
     In order to have less code repetition and better control and consistency, power-ups don't do things 
     like symlinking a file or adding a path to PATH. For example, a power-up doesn't have to know the 
@@ -194,14 +182,15 @@ Power-Ups
 
 Actions
 
-    Actions are pre-defined set of common actions to do. A bit like higher level synthetic file operations 
-    like: 
-        - Link to user home (path as string)
-        - Link to XDG  (path as a string)
-        - Add to shell (script as a string)
-        - Add to PATH (path as a string)
-        - Install in brew (formula names)
-        - run in sh (a path as a string)
+    Power-ups don't perform filesystem operations directly. Instead, they return a list of Actions.
+    Actions are high-level, declarative descriptions of intent. This allows the core engine to plan,
+    validate, and preview all changes before execution. Standard actions include:
+
+        - link: Create a symlink to a file or directory.
+        - shell_source: Source a script into the user's shell profile.
+        - shell_add_path: Add a directory to the PATH.
+        - brew_install: Install a Homebrew formula.
+        - script_run: Execute a script.
 
 The Entire Cycle: 
 
@@ -234,32 +223,34 @@ Customizing dodot's Behavior
 
         disable: [<power-up>]:
             dodot will ignore this power-up for this directory.
-            For example if set to ["Brewfile"] dodot will not run the brew
+            For example if set to ["homebrew"] dodot will not run the brew
             install
+        
+        [[matchers.add]]:
+            Adds a new, custom matcher for this pack. This allows for powerful
+            customization without modifying code. For example:
 
-        pre-fill: (boolean)
-            If set to true, on deployment, dodot will create any file/
-            directory for each power-up absent from that pack. For example it
-            will create an alias.sh and bin directory if they are not present.
-            This means that changes to those will get picked up without any
-            deployments.
-
-        [override]: table
-            <power-up-name>: path to use the said power-up
-            Lets you choose arbitrary paths for any given trigger.
+            [[matchers.add]]
+            trigger = {type = "file_name", patterns = ["*.zsh-theme"]}
+            power_up = "link"
+            priority = 90
+            options = { base = "xdg_config" }
 
 
 Running dodot
 
     The focus on simplicity is shown in the CLI. These are the commands:
 
-        deploy <pack>:
+        deploy [<pack>...]:
             Deploy the pack, creating symlinks and running power-ups. If no pack
             is specified, all packs will be deployed.
             
         info <pack>:
             Shows what in the pack would get triggered and what has already been
-            deployed and the power-ups that will be run.
+            deployed and the power-ups that will be run. It should be explicit 
+            about *why* an action is proposed, for instance: "File 'bin/'
+            matched trigger 'DirectoryTrigger("bin")', activating power-up
+            'shell_add_path'".
 
         disable <path>:
             Disable a pack by creating or updating the .dodot.toml file
