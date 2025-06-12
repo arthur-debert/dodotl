@@ -28,7 +28,7 @@ dodot's Approach
 
     For starters: versioning is for version control. 
     
-    1. Users should edit their configs as they've 
+    1. Users should edit their configs as they always have
     2. No other tooling for editing or reloading: always done with no publishing/updating step.
 
     3. Simplicity: no state, ever. dodot is stateless and does things in a naive and straightforward manner.
@@ -54,7 +54,7 @@ Deployments, Not Installs
     Package managers are really, really hard to get right, and we've got a few that work pretty well. 
     It is a core principle not to walk the slippery slope of package-managers with dodot.
 
-    There are no installs. There are no uninstalls, no upgrades. There is no in-disk data neither 
+    There are no installs. There are no uninstalls, no upgrades. There is no on-disk data neither 
     conflicts from its divergence to the files on disk or deployed.
 
     This design does involve compromises, but it makes everything much simpler, much easier to reason 
@@ -63,17 +63,17 @@ Deployments, Not Installs
         dodot deploy <pack>
 
     Will:
-        - Loop through the requested packages (either passed as arguments or
+        - Loop through the requested packs (either passed as arguments or
         all in your DOTFILES_ROOT)
-        - For each one, it will iterate the files and run them thorugh the triggers. Firing triggers will pass 
-        the trigger data for the appropriate power up to handle..
+        - For each one, it will iterate the files and run them through the matchers. Firing matchers will pass 
+        the trigger data for the appropriate power-up to handle.
         
         - In a broad sense everything becomes a list of : 
             - files to link
             - paths to be added to PATH
-            - brew packages to be installed.
-            - scripts t be ran
-            - Scripts to be added to shell profile.
+            - brew packages to be installed
+            - scripts to be run
+            - Scripts to be added to shell profile
 
 
     For this to work, however, all your files need to be independent. That is, running the operation 
@@ -130,30 +130,35 @@ Packs
     This gives users great flexibility with minimum effort or lock-in. Most of the time, the way dodot 
     works will work just as well for any other system or your personal scripts.
 
-    So when processing packs , dodot matches files names against triggers
+    So when processing packs, dodot matches file names against matchers.
 
-Triggers
+Matchers
 
-    Triggers are a mapping between file system state and power-ups that use it. 
-    For example the file name trigger is used by the alias power-up to get any file called alias.sh  in a 
-    pack.  Triggers are a small, re-usable library  of configurable rules that power-ups can leverage, 
-    freeing power-up authors from having to re-implement file scaning / power up runs. 
+    Matchers are the configurable connection between file system state and power-ups that use it. 
+    For example, the file name matcher is used by the alias power-up to get any file called alias.sh  
+    in a pack. Matchers are a small, reusable library of configurable rules that power-ups can leverage, 
+    freeing power-up authors from having to re-implement file scanning / power-up runs.
 
+    Matchers consist of three parts:
+        - Triggers: Pure matching logic (what files to match)
+        - Power-ups: Pure processing logic (what to do with matched files)  
+        - Configuration: Priority and options connecting triggers to power-ups
 
-
+    This separation allows users to customize which files activate which behaviors without modifying 
+    code, just configuration.
 
 Power-Ups
 
     dodot's role is to process the files in your packs, handling them usefully. The various 
     capabilities for these come from the different power-ups.
 
-    Each power-up knows how to deploy specific files in a pack, and are run by the presence of triggers.
+    Each power-up knows how to deploy specific files in a pack, and are run by the presence of matchers.
 
     Here are the power-ups:
 
         link:
             This is the default power-up, it will symlink any file or directory
-            that is not a trigger.
+            that is not matched by other matchers.
 
         bin:
             Adds the <pack>/bin directory to your PATH.
@@ -178,46 +183,43 @@ Power-Ups
             This will add any shell completions in the file to your shell.
             It will also add any functions in the file to your shell.
 
-    Each power-up gets triggered by a file or directory with the specified names. For the shell related 
-    ones, any shell extensions will work as well, such as .sh, .bash, or .zsh.
+    Each power-up gets triggered by matchers that recognize files or directories with the specified names. 
+    For the shell related ones, any shell extensions will work as well, such as .sh, .bash, or .zsh.
 
-    In order to have less code repetition and better control and consistency, powerups don't do things ,
-    like symlinking a file or adding a path to PATH. For example, a power up doesn't have to know the 
-    details of the user shell-set up, or which other powerups are producing scripts to be in the shell or not.
+    In order to have less code repetition and better control and consistency, power-ups don't do things 
+    like symlinking a file or adding a path to PATH. For example, a power-up doesn't have to know the 
+    details of the user shell-setup, or which other power-ups are producing scripts to be in the shell or not.
 
     Power-ups only return a description of the actions to be done.
 
-Matchers
-
-    Matchers link a trigger to power-ups, like in  a FileNameTrigger that receives a path/glob
-
-        -- 
-
-
-            confg={
-                matchers ={
-                    {trigger=file_name_trigger("Brewfile"), power_up=HomeBrewPwUp}
-                    ...
-                }
-            }
-        -- lua
-
-So the core engine deals with triggers (it has too, since users can change which file name to use, for example),
-and power-ups are free from handling this.
-    
-
 Actions
 
-    Actions are pre-defined set of common actions to do. A bit like a higher level synthetic file operation 
+    Actions are pre-defined set of common actions to do. A bit like higher level synthetic file operations 
     like: 
         - Link to user home (path as string)
-        - Link to XDG  (path as a  string)
-        - Add to shell (string as a string)
+        - Link to XDG  (path as a string)
+        - Add to shell (script as a string)
         - Add to PATH (path as a string)
         - Install in brew (formula names)
         - run in sh (a path as a string)
 
+The Entire Cycle: 
 
+    In a broad overview, when you run dodot <pack> <...pack n>
+    1. Get configuration, resolve DOTFILES dir.
+    2. Resolve pack name to paths, and validate (read access, no ignore, etc) 
+    3. Through each pack: 
+        0. Resolve configuration including the pack's toml (if there is one)
+        1. run matchers and accumulate which ones fire 
+        2. iterate the active matchers running their power-ups for each pack and accumulating their actions
+        3. iterating their actions and transforming them into fsynth operations
+        4. Execute all operations (the fsynth lib does the execution)
+
+The first interesting point that up until 3.4 we have no side effects. Things are safe to run test and verify.
+For an application that is mostly about changing files, this gives us a great deal of safety and testability.
+    
+We rely on the fsynth lib being well tested to guarantee these operation primitives work, but aside 
+from that, we're good.
 
 
 Customizing dodot's Behavior
@@ -284,5 +286,40 @@ The DOTFILES_ROOT
 
     If no such variable is set, dodot will consider the current working directory as the root.
 
+
+RECAP
+
+    Set the DOTFILES_ROOT environment variable to the root of your dotfiles.
+    Review the names of your files against matchers and make changes as needed.
+
+    Double-check all of it is idempotent. Run dodot deploy.
+
+
+    Shell-related power-ups
+
+    Shell-related power-ups, aliases, and profiles, work in a slightly different way than regular 
+    linking profiles.
+
+    1. Install:
+    User must add a source ~/.config/dodot/shell/init.sh to their shell
+    
+    2. At Deploy Time:
+    dodot will create directories ~/.share/state/dodot/shell/aliases
+    In it, dodot will write each pack's alias as a link as in:
+        00-vim-alias.sh
+        01-git-alias.sh
+        
+    3. On shell init:
+    dodot will source the init.sh file, which will source all the
+    aliases in the ~/.share/state/dodot/shell/aliases directory.
+
+    This ensures a few things:
+        - The order of the aliases is preserved
+        - The aliases are not duplicated
+        - Each deployment is immediate
+        - Edits to any of these files are live
+        - It's easy to inspect what is being done
+
+    This is true for the alias, profile, and bin matchers.
 
 See docs/execution.txxt for the particular details.

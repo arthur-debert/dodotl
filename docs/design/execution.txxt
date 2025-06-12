@@ -1,41 +1,37 @@
-dodot's execution
+dodot Implementation and Execution
                 
 
 1. Overview 
     
     This is the implementation side of dodot, read the docs/concepts-and-design.txxt for the reasoning.
 
-        1. Get configuration , resolve DOTFILES dir.
-        2. Resolve pack name to paths, and validate (read access, no ignore, etc)  (validate packs)
-        3. Through each pack:  (get firing triggers): -> array of triggers matches and their powerups.
-            1. Resolve configuration including the pack's toml (if there is one)
-            2. run triggers and accumulate which one fires  (get firing triggers)
-        4.  Activate power up (gets a list of actions ) -> array of actions  per power-up
-            1. iterate the active triggers running their power-ups for each pack and accumulating their actions (get power-ups actions)
-        4. Plan Actions:  -> array of simple syntethic file systems operations to run 
-            1. iterating their actions and transforming the into fsynth operations (get fs operations)
-        4. Run: actually run these changes
-            1. Execute all operations (the fsynth lib does the execution) (run operations)
+    The execution pipeline follows these steps:
+        1. Get configuration, resolve DOTFILES dir.
+        2. Resolve pack names to paths, and validate (read access, no ignore, etc)  
+        3. Through each pack: 
+            a. Resolve configuration including the pack's toml (if there is one)
+            b. Run matchers and accumulate which ones fire  (get firing matchers)
+            c. Iterate the active matchers running their power-ups for each pack and accumulating their actions (get power-ups actions)
+        4. Plan Actions: Transform actions into fsynth operations (get fs operations)
+        5. Run: actually execute these changes via fsynth (run operations)
 
-    And the implementation for triggers, actions , power ups.
+    And the implementation for matchers, triggers, actions, and power-ups.
 
 2. Libraries
     
     As we planned we either found or created lua libraries that handle an abstract lower level part of the 
     problem. These are: 
 
-        - fysnth (https://luarocks.org/modules/arthur-debert/fsynth) 0.1.0 This is the we created for this 
-        specific problem and hence it should serve us well. it has an api for creating file system operations
+        - fsynth (https://luarocks.org/modules/arthur-debert/fsynth) 0.1.0 This is the one we created for this 
+        specific problem and hence it should serve us well. It has an api for creating file system operations
         and a runner to run it, as well as facilities for visualizing it.  /Users/adebert/h/lua/fsynth.lua/fsynth and 
         /Users/adebert/h/lua/fsynth.lua/docs
 
-        - melt( https://luarocks.org/modules/arthur-debert/melt) 0.1.1 This rock allows you to declare a 
-    chain of configuration (can be files, env vars, command line options) and get back a unified one , 
-    merged in the right order. Locally source code and docs ~/h/lua/lua.melt/docs ~/h/lua/lua.melt/lua
-/Users/adebert/h/lua/lua.melt/docs:
+        - melt (https://luarocks.org/modules/arthur-debert/melt) 0.1.1 This rock allows you to declare a 
+        chain of configuration (can be files, env vars, command line options) and get back a unified one, 
+        merged in the right order. Locally source code and docs ~/h/lua/lua.melt/docs ~/h/lua/lua.melt/lua
 
-
-3. Design
+3. Design Principles
 
     3.1. Functional Programming
         
@@ -43,171 +39,249 @@ dodot's execution
         difficult part to make functional are all file system operations, we should have no difficulty with the 
         rest. 
 
-        The domain is well suited for this. Somethings, like for example, the list of triggers and powerups, 
-        should  be passable as on optional arg, or dodot will fetch the default ones. This has the benefit 
-        of helping testability
+        The domain is well suited for this. Something, like for example, the list of matchers and power-ups, 
+        should be passable as an optional arg, or dodot will fetch the default ones. This has the benefit 
+        of helping testability.
 
     3.2 API Sketch
 
-        
+        The api can be very functional: 
 
-            -- The api can be very functional: 
+            local dodot = require("dodot.core")
 
-                local dotot =  require("dodot.core")
-
-                local potential_packs = dodot.get_pack_candidates(dotfiles_root)
-                local packs = dodot.get_packs(potential_packs)
-                local active_triggers= dodot.get_firing_triggers(packs) -- don't pass the second arg triggers
-                local actions =- dodot.get_action_list(active_triggers) -- don't pass actions
-                local fs_operations = get_fs_ops(actions)
-                fsynth.run(fs_operations)
-
-            -- lua
+            local potential_packs = dodot.get_pack_candidates(dotfiles_root)
+            local packs = dodot.get_packs(potential_packs)
+            local matchers = dodot.get_matchers(config) 
+            local matches = dodot.get_matches(packs, matchers) 
+            local actions = dodot.get_actions(matches)
+            local fs_operations = dodot.get_operations(actions)
+            fsynth.execute(fs_operations)
 
         I'm being simplistic, but this is the sketch of the api / main handlers. For actions, power-ups and 
-        trigers,  the receives the trigger definitions as second param
-                dodot.get_firing_triggers(packs, triggers) 
-        Which if not provided with default to dodot.config.get_triggers()
+        matchers, the receivers get the configuration definitions as second param:
+            dodot.get_matches(packs, matchers) 
+        Which if not provided will default to dodot.config.get_default_matchers()
 
-    3.3 DataTypes
+    3.3 Data Types
 
-        We need to both settle on the data type design as well as the which ones do we nee for Triggers,
-         Power-ups and Actions .  (power-ups are defined and described in the concept problem)
+        We need to both settle on the data type design as well as which ones we need for Triggers,
+        Power-ups and Actions. (power-ups are defined and described in the concept problem)
 
-4. Execution Plan
+        The core entities are:
+        - Triggers: Pure matching logic 
+        - Power-ups: Pure processing logic
+        - Matchers: Configuration connecting the two
+        - Actions: High-level operations to perform
+        - Operations: fsynth filesystem operations
 
-    We'll do the implementation in phases, selecting both features and functionalities to focus incrementally.
-    
-    1. Reducing scope
+4. Implementation Roadmap
+
+    Phase 1: Foundation (Milestone M1)
         
-        Since the core use is the deploy command (everything else will be it's helper commands) that is 
-        the one we want to do first. 
+        Core infrastructure and basic functionality.
 
-        a. Core PowerUps
+        M1.1 Project Structure
+            - Set up proper lua module structure
+            - Configure luarocks and dependencies  
+            - Set up testing framework (busted)
+            - Basic CLI structure with subcommands
 
-            Instead of working on all powerups at once, we'll work on a smaller subset that is quite of all 
-            things that powerups needs to do, as well as good triggers tests beds and so forth.
+        M1.2 Configuration System
+            - Implement config loading with melt
+            - DOTFILES_ROOT resolution
+            - Basic .dodot.toml support
+            - Environment and CLI option handling
 
-            We'll do: 
+        M1.3 Pack Discovery
+            - Pack scanning and validation
+            - Basic pack metadata extraction
+            - Pack ignore logic (.dodot.toml ignore=true)
 
-                - symlink power up (to user home)
-                - profile powerup (add things to your shell)
-                - bin powerup (add paths)
+        Deliverable: Can discover and validate packs, load configuration
 
-            These exercise most triggers needed and actions while not being extensive.
-
-        b. No Customization
-
-            The use of melt allowes us to normalize user customization in a black box way. Hence we will at 
-            first work with the non customization ideas, but, will keep the stubs for get_merged_config... 
-            When the time comes, we should just change these to actually use melt.
-
-        c. No file operations. 
-
-            We rely and trust on fsynth do execute a batch of synthetic ops into real fs changes, hence, 
-            while in the  very end we should have a couple of full integration tests to verify, we can mostly
-            presuppose that can stop at the final operations list.
-
-    2. Registries
-
-        We want all matchers, triggers, actions and powerups to be user extensible at some point, that is
-        they are open systems, and hence they won't be hardcoded. All these will use a registry sytem, 
-        lua/utils/registry.lua will handle. 
-
-         -- the registry
-            local registry = require("dodot.utils.registry")
-
-            triggers = registry.new()
-            triggers.add("file_name", FileNameTrigger)
-            triggers.get( key)
-            triggers.remove.. triggers list...
-
-        the core dodot object will have
+    Phase 2: Core Matching Engine (Milestone M2)
         
-        dodot.libs.triggers , dodot.libs.actions, etc 
+        Implement the trigger and matcher system.
+
+        M2.1 Trigger Framework
+            - Base trigger interface and validation
+            - FileNameTrigger implementation with globbing
+            - DirectoryTrigger implementation
+            - ExtensionTrigger implementation
+
+        M2.2 Matcher System  
+            - Matcher configuration loading
+            - Priority-based conflict resolution
+            - Default matcher definitions
+            - User override system
+
+        M2.3 Match Resolution
+            - File scanning within packs
+            - Match execution and metadata collection
+            - Conflict resolution by priority
+            - Match grouping by power-up
+
+        Deliverable: Can scan packs and identify which files match which power-ups
+
+    Phase 3: Power-ups and Actions (Milestone M3)
         
-        The init for each category should be responsible for registring them (as in 
-        dodot/actions/init.lua will register the actions and so forth)
+        Implement power-ups and action generation.
 
-        Because all of these are simple tables with names objects, they are easy to mock during testing
+        M3.1 Power-up Framework
+            - Base power-up interface
+            - Power-up registry and loading
+            - Validation and error handling
 
+        M3.2 Core Power-ups
+            - link_home power-up (symlink to ~/)
+            - link_xdg power-up (symlink to ~/.config)
+            - shell_profile power-up (shell integration)
+            - path_add power-up (PATH management)
 
-    d. Layout: 
+        M3.3 Action System
+            - Action data structures
+            - Action validation and prioritization
+            - Action to operation mapping
 
-        Something like this
-        lua
-        └── dodot
-            ├── actions
-            ├── cli.lua - does argument parsing and then calls business logic
-            ├── libs.lua -> does the inital registry setup for each
-            ├── core - sample one file per phase 
-            │   ├── get_actions.lua
-            │   ├── get_firing_triggers
-            │   ├── get_fs_ops.lua
-            │   ├── get_packs.lua
-            │   ├── list_packs.lua
-            │   └── run_ops.lua
-            ├── commands
-            │   ├── list.lua
-                └── deploy.lua
-            ├── init.lua
-            ├── matchers - dir for the matchers
-            ├── powerups - dir for the powerups
-            ├── triggers - dir for the triggers
-            └── utils
-                └── registry.lua
+        Deliverable: Can generate actions from matched files
 
-    e. CLI Isolation
-
-        The entire system is to be implemented as pure business logic, that is the dodot.deploy module 
-        is only receiving full lua objects, not shell sargs. Likewise nothing prints to stdout.
-
-        the dodot/cli.lua file is responsible for parsing args, validating and calling the appropriate 
-        commands, but at that point, there is no cli.
-
-5. Phases: 
-
-    5.1 Infrasturcture
-
-    The goal is to have all the pieces in places, so that later we fine tune this and work on each of the 
-    specifics (triggers, powerups, etc)
-    
-        - Implement the registry
-        - Implent code to validate packs
-        - implement the loops for run time stages (getting packs, validating, getting triggers, getting 
-        actions, getting operations) one by one in a controled and incremental manner
+    Phase 4: Operation Execution (Milestone M4)
         
-    5.2 Concept 
-    
-    We implement the first iterations of triggers , actions, etc, one by one as each power up needs them.
-    The goal here is to validate and hone the design, data types, etc.
+        Convert actions to fsynth operations and execute.
 
-    - Implement the Core Powerups, one by one with the flow
+        M4.1 Operation Builders
+            - Action-to-operation conversion
+            - fsynth operation construction
+            - Operation queue management
 
+        M4.2 Execution Engine
+            - fsynth integration
+            - Dry-run support
+            - Transactional execution
+            - Error handling and rollback
 
-    5.3 Expansion
+        M4.3 Shell Integration
+            - Shell profile management
+            - Ordered script sourcing
+            - PATH manipulation
+            - Alias management
 
-    We finish all power-us and associated libs.
+        Deliverable: Full working deployment pipeline
 
-    5.4 Real World
+    Phase 5: Advanced Features (Milestone M5)
+        
+        Polish and advanced functionality.
 
-    We implement and test the final operations run, that is , running the actual synthetic operations 
-    into  fs changes.
+        M5.1 Advanced Power-ups
+            - homebrew power-up (Brewfile support)
+            - script_runner power-up (setup.sh execution)
+            - Custom power-up system
 
-    The goal is to have confidence  that core value of the program works, the deploy command.
+        M5.2 Advanced Triggers
+            - ContentTrigger (file content matching)
+            - CombinationTrigger (AND/OR logic)
+            - Custom trigger system
 
-    5.5 Auxiliary commands
+        M5.3 CLI Enhancement
+            - info command (what would be deployed)
+            - disable command (pack management)
+            - Verbose and debugging output
+            - Better error messages
 
-    Now we do the info, disable, etc, minor commands
+        Deliverable: Full-featured dodot v1.0
 
+    Phase 6: Testing and Documentation (Milestone M6)
+        
+        Comprehensive testing and documentation.
 
-    5.6 The Acutal CLI
+        M6.1 Test Suite
+            - Unit tests for all components
+            - Integration tests
+            - CLI tests
+            - Regression tests
 
-    With everything tested, we write the the dotot.cli.lua that parses and validates arguments and calls
-    dodot/commands/<command>.lua
+        M6.2 Documentation
+            - User guide and examples
+            - API documentation  
+            - Troubleshooting guide
+            - Migration guide from other tools
 
-    5.7 customizations
-        One by one, inner releases for
-        - user wide customiztion
-        -  pack customiztion (toml file on pack)
-        -  command line args
+        M6.3 Packaging
+            - Luarocks packaging
+            - Installation scripts
+            - Release automation
+
+        Deliverable: Production-ready dodot with full documentation
+
+5. Technical Implementation Notes
+
+    5.1 File System Safety
+        
+        All file system operations go through fsynth for safety:
+        - Validation before execution
+        - Dry-run capability
+        - Transactional rollback
+        - Checksum verification
+
+    5.2 Configuration Hierarchy
+        
+        Configuration merging order (melt library):
+        1. Built-in defaults
+        2. Global ~/.dodot.toml  
+        3. Pack-specific .dodot.toml
+        4. Environment variables (DODOT_*)
+        5. Command line arguments
+
+    5.3 Error Handling Strategy
+        
+        Fail fast with clear messages:
+        - Validate everything upfront
+        - Provide actionable error messages
+        - Support continuing on non-critical errors
+        - Always allow dry-run for safety
+
+    5.4 Testing Strategy
+        
+        Test each layer independently:
+        - Pure functions for triggers and power-ups
+        - Mock file system for integration tests
+        - Actual file system for end-to-end tests
+        - Property-based testing for edge cases
+
+6. Development Milestones Schedule
+
+    Estimated timeline (assuming part-time development):
+
+    M1 (Foundation): 2-3 weeks
+        Critical path: Configuration system and pack discovery
+
+    M2 (Matching): 3-4 weeks  
+        Critical path: Matcher priority resolution
+
+    M3 (Power-ups): 2-3 weeks
+        Critical path: Shell integration complexity
+
+    M4 (Execution): 2-3 weeks
+        Critical path: fsynth integration and error handling
+
+    M5 (Advanced): 3-4 weeks
+        Critical path: Homebrew integration and complex triggers
+
+    M6 (Polish): 2-3 weeks
+        Critical path: Documentation and packaging
+
+    Total: 14-20 weeks (3-5 months)
+
+    Each milestone should be fully functional and tested before proceeding to the next.
+
+7. Success Criteria
+
+    M1: Can run `dodot info` and see discovered packs
+    M2: Can run `dodot info <pack>` and see what would match
+    M3: Can run `dodot deploy --dry-run` and see generated actions  
+    M4: Can run `dodot deploy` and successfully deploy basic packs
+    M5: Can handle complex packs with multiple power-ups
+    M6: Ready for public release
+
+This implementation plan provides a clear roadmap from concept to working tool, with each 
+milestone building on the previous one while maintaining functionality.

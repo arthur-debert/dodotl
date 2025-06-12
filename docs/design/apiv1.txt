@@ -1,217 +1,349 @@
+                            dodot API v1 Design
 
-### 1. True Separation of Concerns
-```lua
--- Triggers are reusable matching logic
-local FileNameTrigger = function(patterns, options)
-    return {
-        type = "file_name",
-        patterns = patterns,
-        options = options or {},
-        match = function(self, file_path, pack_path)
-            -- Pure matching logic
-        end
-    }
-end
 
--- Power-ups are reusable processing logic  
-local HomeBrewPowerUp = {
-    name = "homebrew",
-    process = function(matched_files, pack_path, options)
-        -- Pure processing logic
-    end
-}
+1. Overview 
 
--- Matchers are the configurable glue
-local default_matchers = {
-    {
-        trigger = FileNameTrigger({"Brewfile", "Brewfile.*"}),
-        power_up = HomeBrewPowerUp,
-        priority = 70,
-        options = {update_existing = true}
-    }
-}
-```
+    This document defines the API for dodot's v1 implementation, incorporating the improved 
+    design with separate Triggers, Power-ups, and Matchers. The API follows functional 
+    programming principles and leverages the fsynth library for safe filesystem operations.
 
-### 2. User Customizability
-Users can override the default matchers without touching code:
+    The core insight is that we need three distinct entities:
+        - Triggers: Pure matching logic (what files to match)
+        - Power-ups: Pure processing logic (what to do with matched files)
+        - Matchers: Configuration connecting triggers to power-ups
 
-```lua
--- In user's .dodot.toml or pack-specific config
-matchers = {
-    -- User prefers "packages.txt" instead of "Brewfile" 
-    {
-        trigger = {type = "file_name", patterns = {"packages.txt"}},
-        power_up = "homebrew",
-        priority = 70
-    },
-    
-    -- User wants shell files in subdirectories
-    {
-        trigger = {
-            type = "file_name", 
-            patterns = {"*.sh"},
-            options = {recursive = true, exclude_patterns = {"setup.sh"}}
-        },
-        power_up = "shell_profile"
-    }
-}
-```
+2. Core Data Types
 
-## Proposed Trigger Types
+    2.1 Trigger Interface
+        
+        A trigger is a pure function that determines if a file should be processed.
+        All triggers implement this interface:
 
-```lua
--- File name/pattern matching
-local FileNameTrigger = function(patterns, options)
-    return {
-        type = "file_name",
-        patterns = patterns,  -- glob patterns
-        options = merge({
-            case_sensitive = true,
-            recursive = false,
-            exclude_patterns = {}
-        }, options)
-    }
-end
+            local trigger = {
+                type = "string",        -- trigger type identifier
+                match = function(self, file_path, pack_path)
+                    -- Returns: boolean, metadata_table
+                end,
+                validate = function(self)
+                    -- Returns: boolean, error_message
+                end
+            }
 
--- Directory existence
-local DirectoryTrigger = function(dir_name, options) 
-    return {
-        type = "directory",
-        name = dir_name,
-        options = merge({
-            must_exist = true,
-            must_be_executable = false
-        }, options)
-    }
-end
+    2.2 Power-up Interface
+        
+        A power-up processes matched files and returns a list of actions.
 
--- File content matching
-local ContentTrigger = function(pattern, options)
-    return {
-        type = "content",
-        pattern = pattern,  -- regex or literal
-        options = merge({
-            location = "anywhere", -- "first_line", "anywhere", "last_line"
-            max_file_size = 1024 * 1024 -- 1MB limit
-        }, options)
-    }
-end
+            local power_up = {
+                name = "string",        -- power-up identifier
+                process = function(matched_files, pack_path, options)
+                    -- matched_files: array of {path, metadata} 
+                    -- Returns: array of Action objects
+                end,
+                validate = function(matched_files, pack_path, options)
+                    -- Returns: boolean, error_message
+                end
+            }
 
--- File extension
-local ExtensionTrigger = function(extensions)
-    return {
-        type = "extension", 
-        extensions = extensions -- {".sh", ".zsh", ".bash"}
-    }
-end
+    2.3 Matcher Configuration
+        
+        Matchers connect triggers to power-ups with priority and options.
 
--- Combination trigger (AND/OR logic)
-local CombinationTrigger = function(triggers, logic)
-    return {
-        type = "combination",
-        triggers = triggers,
-        logic = logic -- "and" or "or"
-    }
-end
-```
+            local matcher = {
+                trigger = trigger_instance,
+                power_up = "power_up_name",
+                priority = number,      -- higher wins conflicts
+                options = {}            -- passed to power-up.process
+            }
 
-## Enhanced Configuration Structure
+    2.4 Action Types
+        
+        Actions represent high-level operations to be performed.
 
-```lua
--- Default system matchers (can be overridden)
-local system_matchers = {
-    -- Package managers
-    {
-        trigger = FileNameTrigger({"Brewfile", "Brewfile.*"}),
-        power_up = "homebrew",
-        priority = 80
-    },
-    
-    {
-        trigger = FileNameTrigger({"Pipfile", "requirements.txt"}),
-        power_up = "python_packages", 
-        priority = 80
-    },
-    
-    -- Shell configuration
-    {
-        trigger = CombinationTrigger({
-            FileNameTrigger({"alias*", "aliases*"}),
-            ExtensionTrigger({".sh", ".bash", ".zsh"})
-        }, "and"),
-        power_up = "shell_profile",
-        priority = 70
-    },
-    
-    -- Executable directories
-    {
-        trigger = DirectoryTrigger("bin", {must_exist = true}),
-        power_up = "path_add",
-        priority = 60
-    },
-    
-    -- Setup scripts
-    {
-        trigger = CombinationTrigger({
-            FileNameTrigger({"setup*", "install*"}),
-            ExtensionTrigger({".sh", ".bash"})
-        }, "and"),
-        power_up = "script_runner",
-        priority = 50
-    },
-    
-    -- Default symlink (lowest priority)
-    {
-        trigger = FileNameTrigger({"*"}), -- everything
-        power_up = "symlink_auto",
-        priority = 10,
-        options = {
-            exclude_if_matched_above = true -- skip if higher priority matched
-        }
-    }
-}
-```
+            local action = {
+                type = "string",        -- action type
+                description = "string", -- human readable
+                data = {},             -- action-specific data
+                pack_source = "string", -- source pack
+                priority = number       -- execution order
+            }
 
-## Execution Flow Enhancement
+3. Standard Trigger Types
 
-```lua
--- Enhanced execution pipeline
-function get_firing_triggers(pack_path, matchers_config)
-    local active_matches = {}
-    
-    -- 1. Scan all files in pack
-    local all_files = scan_pack_files(pack_path)
-    
-    -- 2. Test each file against all matchers
-    for _, file_path in ipairs(all_files) do
-        for _, matcher in ipairs(matchers_config) do
-            if matcher.trigger:match(file_path, pack_path) then
-                table.insert(active_matches, {
-                    file_path = file_path,
-                    matcher = matcher,
-                    priority = matcher.priority
-                })
+    3.1 FileNameTrigger
+        
+        Matches files based on glob patterns.
+
+            local file_trigger = FileNameTrigger.new(patterns, options)
+
+        Options:
+            case_sensitive = boolean (default: true)
+            recursive = boolean (default: false)
+            exclude_patterns = array of strings
+
+    3.2 DirectoryTrigger
+        
+        Matches directories by name and properties.
+
+            local dir_trigger = DirectoryTrigger.new(name, options)
+
+        Options:
+            must_exist = boolean (default: true)
+            must_be_executable = boolean (default: false)
+
+    3.3 ExtensionTrigger
+        
+        Matches files by extension.
+
+            local ext_trigger = ExtensionTrigger.new(extensions)
+
+        Extensions: array of strings like {".sh", ".zsh", ".bash"}
+
+    3.4 ContentTrigger
+        
+        Matches files by content patterns.
+
+            local content_trigger = ContentTrigger.new(pattern, options)
+
+        Options:
+            location = "first_line" | "anywhere" | "last_line"
+            max_file_size = number (default: 1MB)
+
+4. Standard Power-ups
+
+    4.1 link_home
+        
+        Creates symlinks in the user's home directory.
+
+            Actions produced: link_home
+            Options: overwrite, backup
+
+    4.2 link_xdg
+        
+        Creates symlinks in ~/.config directory.
+
+            Actions produced: link_xdg  
+            Options: overwrite, backup
+
+    4.3 shell_profile
+        
+        Adds shell scripts to the user's profile.
+
+            Actions produced: shell_source
+            Options: shell_types, order
+
+    4.4 path_add
+        
+        Adds directories to PATH.
+
+            Actions produced: path_add
+            Options: prepend, shell_types
+
+    4.5 homebrew
+        
+        Installs packages via Homebrew.
+
+            Actions produced: brew_install
+            Options: update_existing, install_casks
+
+    4.6 script_runner
+        
+        Executes setup scripts.
+
+            Actions produced: script_run
+            Options: run_once, working_directory
+
+5. Configuration API
+
+    5.1 Default Matchers
+        
+        The system provides sensible defaults:
+
+            local default_matchers = {
+                -- Package managers (highest priority)
+                {
+                    trigger = FileNameTrigger.new({"Brewfile", "Brewfile.*"}),
+                    power_up = "homebrew",
+                    priority = 80
+                },
+                
+                -- Shell configuration
+                {
+                    trigger = FileNameTrigger.new({"alias.*", "aliases.*"}),
+                    power_up = "shell_profile",
+                    priority = 70
+                },
+                
+                -- Executable directories
+                {
+                    trigger = DirectoryTrigger.new("bin"),
+                    power_up = "path_add", 
+                    priority = 60
+                },
+                
+                -- Default symlink (lowest priority)
+                {
+                    trigger = FileNameTrigger.new({".*"}),
+                    power_up = "link_home",
+                    priority = 10
+                }
+            }
+
+    5.2 User Customization
+        
+        Users can override matchers in .dodot.toml:
+
+            [matchers]
+            [[matchers.custom]]
+            trigger = {type = "file_name", patterns = ["packages.txt"]}
+            power_up = "homebrew"
+            priority = 85
+
+6. Core API Functions
+
+    6.1 Main Pipeline
+        
+            local dodot = require("dodot.core")
+
+            -- 1. Discover packs
+            local packs = dodot.get_packs(dotfiles_root)
+            
+            -- 2. Get active matchers (default + user config)
+            local matchers = dodot.get_matchers(config)
+            
+            -- 3. Find matches across all packs
+            local matches = dodot.get_matches(packs, matchers)
+            
+            -- 4. Generate actions from matches
+            local actions = dodot.get_actions(matches)
+            
+            -- 5. Convert to filesystem operations
+            local operations = dodot.get_operations(actions)
+            
+            -- 6. Execute with fsynth
+            local results = fsynth.execute(operations)
+
+    6.2 Matcher Resolution
+        
+            function dodot.get_matches(packs, matchers)
+                local all_matches = {}
+                
+                for _, pack in ipairs(packs) do
+                    local pack_files = scan_pack(pack.path)
+                    
+                    for _, file in ipairs(pack_files) do
+                        for _, matcher in ipairs(matchers) do
+                            local matched, metadata = matcher.trigger:match(file, pack.path)
+                            if matched then
+                                table.insert(all_matches, {
+                                    file = file,
+                                    pack = pack,
+                                    matcher = matcher,
+                                    metadata = metadata
+                                })
+                            end
+                        end
+                    end
+                end
+                
+                return resolve_conflicts(all_matches)
             end
-        end
-    end
-    
-    -- 3. Resolve conflicts by priority
-    local resolved_matches = resolve_conflicts(active_matches)
-    
-    -- 4. Group by power-up for batch processing
-    return group_by_powerup(resolved_matches)
-end
-```
 
-## Benefits of This Architecture
+    6.3 Action Generation
+        
+            function dodot.get_actions(matches)
+                local actions = {}
+                local grouped = group_by_powerup(matches)
+                
+                for power_up_name, match_group in pairs(grouped) do
+                    local power_up = get_power_up(power_up_name)
+                    local files = extract_files(match_group)
+                    local options = merge_options(match_group)
+                    
+                    local power_up_actions = power_up:process(files, options)
+                    for _, action in ipairs(power_up_actions) do
+                        table.insert(actions, action)
+                    end
+                end
+                
+                return sort_by_priority(actions)
+            end
 
-1. Flexibility: Users can easily customize which files trigger which behaviors
-2. Reusability: Same trigger types can be used for different power-ups
-3. Testability: Each component can be unit tested independently  
-4. Extensibility: New trigger types or power-ups can be added without affecting others
-5. Configuration: Everything is data-driven and configurable
-6. Conflict Resolution: Clear priority system for when multiple matchers match the same file
+7. Action to Operation Mapping
 
-This design also makes the system much more approachable for users who want to customize behavior - they just need to understand the matcher configuration format, not the internals of triggers or power-ups.
+    7.1 Action Types to fsynth Operations
+        
+            link_home -> fsynth.op.symlink
+            link_xdg -> fsynth.op.symlink  
+            shell_source -> fsynth.op.create_file + fsynth.op.symlink
+            path_add -> fsynth.op.create_file
+            brew_install -> fsynth.op.script_run
+            script_run -> fsynth.op.script_run
 
-Would you like me to elaborate on any specific aspect of this improved architecture?
+    7.2 Operation Builder
+        
+            function build_operations(actions)
+                local operations = {}
+                
+                for _, action in ipairs(actions) do
+                    local builders = operation_builders[action.type]
+                    if builders then
+                        local ops = builders(action)
+                        for _, op in ipairs(ops) do
+                            table.insert(operations, op)
+                        end
+                    end
+                end
+                
+                return operations
+            end
+
+8. Testing and Validation
+
+    8.1 Dry Run Support
+        
+        All operations support dry-run mode via fsynth:
+
+            local results = fsynth.execute(operations, {dry_run = true})
+
+    8.2 Validation Pipeline
+        
+        Each component validates its inputs:
+
+            -- Trigger validation
+            local valid, err = trigger:validate()
+            
+            -- Power-up validation  
+            local valid, err = power_up:validate(files, pack_path, options)
+            
+            -- Operation validation
+            local valid, err = operation:validate()
+
+9. Configuration Integration
+
+    9.1 Melt Integration
+        
+        Configuration loading uses the melt library:
+
+            local config = melt.load({
+                {type = "file", path = "~/.dodot.toml"},
+                {type = "file", path = pack_path .. "/.dodot.toml"},
+                {type = "env", prefix = "DODOT_"},
+                {type = "defaults", values = default_config}
+            })
+
+    9.2 Pack-specific Overrides
+        
+        Each pack can override matchers:
+
+            [matchers]
+            disable = ["homebrew", "script_runner"]
+            
+            [[matchers.add]]
+            trigger = {type = "file_name", patterns = ["*.custom"]}
+            power_up = "custom_handler"
+            priority = 90
+
+This API design provides a clean separation of concerns while maintaining the flexibility 
+to handle diverse dotfile configurations. The matcher system allows users to customize 
+behavior without modifying code, and the integration with fsynth provides robust 
+filesystem operation handling.
