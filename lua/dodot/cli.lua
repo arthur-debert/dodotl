@@ -1,6 +1,10 @@
 -- CLI module for dodot
 -- Handles argument parsing and validation
 -- This module bridges user input to business logic
+--
+-- NOTE: This is a placeholder implementation.
+-- Full CLI functionality is planned for Phase 5 as detailed
+-- in docs/design/execution.txxt.
 
 local M = {}
 

@@ -1,5 +1,8 @@
--- End-to-end tests for CLI functionality
--- Demonstrates e2e testing patterns for dodot
+-- End-to-end tests for dodot CLI basic functionality.
+--
+-- NOTE: These tests are intended for Phase 5 when the CLI
+-- (lua/dodot/cli.lua) is fully implemented.
+-- They are expected to be minimal or disabled until then.
 
 local test_utils = require("spec.helpers.test_utils")
 
