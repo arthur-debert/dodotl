@@ -42,16 +42,18 @@ M.errors = {}
 
 function M.errors.assert_error_code(expected_code, result, err)
     -- Helper to test error codes consistently
-    assert.is_nil(result, "Expected operation to fail but got result")
-    assert.is_not_nil(err, "Expected error but got nil")
-    assert.is_table(err, "Expected error to be a table")
-    assert.equals(expected_code, err.code, "Error code mismatch")
+    local busted_assert = require("luassert")
+    busted_assert.is_nil(result, "Expected operation to fail but got result")
+    busted_assert.is_not_nil(err, "Expected error but got nil")
+    busted_assert.is_table(err, "Expected error to be a table")
+    busted_assert.equals(expected_code, err.code, "Error code mismatch")
 end
 
 function M.errors.assert_success(result, err)
     -- Helper to test successful operations
-    assert.is_nil(err, "Expected success but got error: " .. (err and err.message or "unknown"))
-    assert.is_not_nil(result, "Expected result but got nil")
+    local busted_assert = require("luassert")
+    busted_assert.is_nil(err, "Expected success but got error: " .. (err and err.message or "unknown"))
+    busted_assert.is_not_nil(result, "Expected result but got nil")
 end
 
 -- Mock data generators
