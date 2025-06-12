@@ -1,0 +1,12 @@
+return {
+  default = {
+    ["coverage"] = false,
+    ["ROOT"] = {
+      "spec/",
+    },
+    ["output"] = "utfTerminal",
+    ["verbose"] = true,
+    ["lua"] = "lua",
+    ["lpath"] = "lua/?.lua;lua/?/init.lua",
+  }
+}
