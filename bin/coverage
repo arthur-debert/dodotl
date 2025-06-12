@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+# Script to run tests with coverage reporting
+
+# Create coverage directory if it doesn't exist
+mkdir -p coverage
+
+# Clear previous coverage data
+rm -f coverage/luacov.stats.out coverage/luacov.report.out coverage/lcov.info
+
+# Run tests with LuaCov
+echo "Running tests with coverage..."
+BUSTED_ARGS="-c"  # Enable console output
+COVERAGE_OPTIONS="--coverage"
+
+busted $BUSTED_ARGS $COVERAGE_OPTIONS
+
+# Check if tests passed
+if [ $? -ne 0 ]; then
+  echo "❌ Tests failed"
+  exit 1
+fi
+
+# Generate coverage report
+echo "Generating coverage report..."
+if [ -f "coverage/luacov.stats.out" ]; then
+  # Generate both the standard LuaCov report and LCOV format report
+  luacov
+  
+  # Check if lcov.info exists (created by luacov-reporter-lcov)
+  if [ -f "coverage/lcov.info" ]; then
+    echo "LCOV report generated: coverage/lcov.info"
+    
+    # If lcov is installed, generate HTML report
+    if command -v genhtml > /dev/null; then
+      echo "Generating HTML report..."
+      mkdir -p coverage/html
+      genhtml coverage/lcov.info -o coverage/html
+      echo "✅ HTML coverage report generated in coverage/html/"
+      echo "   Open coverage/html/index.html in your browser to view"
+    else
+      echo "ℹ️ Install lcov to generate HTML reports: brew install lcov"
+    fi
+  else
+    echo "❌ LCOV report not generated. Check configuration in .luacov"
+  fi
+
+  # Display simple coverage summary
+  echo "Coverage Summary:"
+  grep -A 10 "File\s*Hits\s*Missed\s*Coverage" coverage/luacov.report.out | head -n 15
+  
+  echo "✅ Full coverage report available in coverage/luacov.report.out"
+else
+  echo "❌ No coverage data generated (luacov.stats.out not found)"
+  exit 1
+fi

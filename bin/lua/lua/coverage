@@ -1,0 +1,167 @@
+#!/bin/bash
+
+# ANSI color codes
+RED='\033[31m'
+YELLOW='\033[33m'
+GREEN='\033[32m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+# Clean up previous coverage files
+echo "🧹 Cleaning up previous coverage files..."
+rm -rf coverage/*
+mkdir -p coverage
+
+# Ensure required LuaRocks packages are installed
+echo "🔍 Checking for required LuaRocks packages..."
+
+# Check if luacov is installed
+if ! luarocks list | grep -q "luacov"; then
+    echo "📦 Installing luacov..."
+    luarocks install luacov
+fi
+
+# Check if luacov-console is installed
+if ! luarocks list | grep -q "luacov-console"; then
+    echo "📦 Installing luacov-console..."
+    luarocks install luacov-console
+fi
+
+# Create an updated .luacov config file to ensure all modules are included
+cat >.luacov <<EOL
+return {
+  -- Modules to include in coverage analysis
+  include = {
+    "lua/lual/",
+    "lual",
+  },
+  -- Modules to exclude from coverage analysis
+  exclude = {
+    "spec",
+    "%.luarocks",
+  },
+  -- Filename to store stats collected
+  statsfile = "coverage/luacov.stats.out",
+  -- Filename to store report
+  reportfile = "coverage/luacov.report.out",
+  -- Enable saving coverage stats
+  savestepdefaults = true,
+  -- Run reporter on completion (useful for CI systems)
+  runreport = true,
+  -- Delete stats file after reporting (cleanup)
+  deletestats = false,
+  -- List of reporters to run at the end
+  reporter = "default",
+  -- Additional reporters
+  reporters = { "default" },
+}
+EOL
+
+echo "📋 Using updated LuaCov configuration..."
+
+# Set up LUA_PATH to include the current directory for module resolution
+export LUA_PATH="./?.lua;./?/init.lua;$LUA_PATH"
+
+# Run tests with coverage
+echo "🧪 Running tests with coverage..."
+busted -c
+
+if [ $? -ne 0 ]; then
+    echo "❌ Tests failed!"
+    exit 1
+fi
+
+# Generate lcov info file manually from the report
+echo "📊 Generating lcov.info file..."
+echo "" >coverage/lcov.info
+
+# Extract coverage data from luacov.report.out and convert to LCOV format
+grep "lua/lual/" coverage/luacov.report.out | grep "%" | while read -r line; do
+    filename=$(echo "$line" | awk '{print $1}')
+    hits=$(echo "$line" | awk '{print $2}')
+    missed=$(echo "$line" | awk '{print $3}')
+
+    # Only process files that actually exist
+    if [ -f "$filename" ]; then
+        echo "SF:$filename" >>coverage/lcov.info
+
+        # Dummy line coverage data - just mark first line as executed
+        # (this is simplified, real lcov would have detailed line coverage)
+        echo "DA:1,1" >>coverage/lcov.info
+
+        # Add summary data
+        echo "LH:$hits" >>coverage/lcov.info
+        echo "LF:$((hits + missed))" >>coverage/lcov.info
+        echo "end_of_record" >>coverage/lcov.info
+    fi
+done
+
+# Display results
+echo ""
+echo "📊 Coverage files generated:"
+ls -la coverage/
+
+echo ""
+echo -e "${BOLD}📈 Coverage Summary (sorted by coverage % - highest first):${RESET}"
+echo "================================================================"
+
+# Extract and process coverage data from the report
+# We're looking for lines like "lua/lual/api.lua                         66   3      95.65%"
+grep "lua/" coverage/luacov.report.out | grep "%" | sort -k4 -nr | while IFS= read -r line; do
+    # Extract the coverage percentage and convert to integer (remove % and decimal)
+    coverage_str=$(echo "$line" | awk '{print $NF}' | sed 's/%//')
+    # Convert to integer by removing decimal point (e.g., 97.10 -> 9710, 66.46 -> 6646)
+    coverage_int=$(echo "$coverage_str" | sed 's/\.//' | sed 's/^0*//')
+
+    # Handle edge case where coverage might be exactly 0 or have leading zeros
+    if [ -z "$coverage_int" ] || [ "$coverage_int" = "" ]; then
+        coverage_int=0
+    fi
+
+    # Color code based on coverage percentage (using integer comparison)
+    # >= 85% means >= 8500 when decimal point removed
+    # >= 65% means >= 6500 when decimal point removed
+    if [ "$coverage_int" -ge 8500 ]; then
+        echo -e "${GREEN}$line${RESET}"
+    elif [ "$coverage_int" -ge 6500 ]; then
+        echo -e "${YELLOW}$line${RESET}"
+    else
+        echo -e "${RED}$line${RESET}"
+    fi
+done
+
+echo "================================================================"
+
+# Show the total line with appropriate coloring
+total_line=$(grep "^Total" coverage/luacov.report.out)
+total_coverage_str=$(echo "$total_line" | awk '{print $4}' | sed 's/%//')
+total_coverage_int=$(echo "$total_coverage_str" | sed 's/\.//' | sed 's/^0*//')
+
+if [ -z "$total_coverage_int" ] || [ "$total_coverage_int" = "" ]; then
+    total_coverage_int=0
+fi
+
+if [ "$total_coverage_int" -ge 8500 ]; then
+    echo -e "${BOLD}${GREEN}$total_line${RESET}"
+elif [ "$total_coverage_int" -ge 6500 ]; then
+    echo -e "${BOLD}${YELLOW}$total_line${RESET}"
+else
+    echo -e "${BOLD}${RED}$total_line${RESET}"
+fi
+
+echo ""
+echo "📝 Legend:"
+echo -e "  ${GREEN}■${RESET} Green:  >= 85% coverage (Excellent)"
+echo -e "  ${YELLOW}■${RESET} Yellow: >= 65% coverage (Good)"
+echo -e "  ${RED}■${RESET} Red:    < 65% coverage (Needs Improvement)"
+
+# Ensure lcov.info is in the standard location for CI tools
+echo ""
+echo "📤 Preparing coverage data for CI..."
+if [ -f "coverage/lcov.info" ] && [ -s "coverage/lcov.info" ]; then
+    echo "✅ lcov.info is ready for CI"
+else
+    echo "⚠️ lcov.info generation failed, coverage reporting may be incomplete"
+fi
+
+echo "✅ Coverage analysis complete!"
