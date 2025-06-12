@@ -20,6 +20,9 @@ dependencies = {
 	"lua-toml >= 2.0-1", -- The module name is 'toml' despite package name being 'lua-toml'
 	"dkjson >= 2.5", -- For JSON file support
 	"lyaml >= 6.2", -- For YAML file support
+	"fsynth >= 0.1.0", -- File system operations and safety
+	"melt >= 0.1.1", -- Configuration merging and hierarchy
+	"log.lua >= 0.1.0", -- Logging library required by fsynth
 }
 test_dependencies = {
 	"busted >= 2.0.0",

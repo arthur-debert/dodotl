@@ -7,6 +7,7 @@ return {
     ["output"] = "utfTerminal",
     ["verbose"] = true,
     ["lua"] = "lua",
-    ["lpath"] = "lua/?.lua;lua/?/init.lua",
+    ["lpath"] =
+    "lua/?.lua;lua/?/init.lua;/Users/adebert/h/lua/fsynth.lua/?.lua;/Users/adebert/h/lua/fsynth.lua/?/init.lua;/Users/adebert/h/lua/lua.melt/?.lua;/Users/adebert/h/lua/lua.melt/lua/?.lua",
   }
 }
