@@ -1,0 +1,217 @@
+
+### 1. True Separation of Concerns
+```lua
+-- Triggers are reusable matching logic
+local FileNameTrigger = function(patterns, options)
+    return {
+        type = "file_name",
+        patterns = patterns,
+        options = options or {},
+        match = function(self, file_path, pack_path)
+            -- Pure matching logic
+        end
+    }
+end
+
+-- Power-ups are reusable processing logic  
+local HomeBrewPowerUp = {
+    name = "homebrew",
+    process = function(matched_files, pack_path, options)
+        -- Pure processing logic
+    end
+}
+
+-- Matchers are the configurable glue
+local default_matchers = {
+    {
+        trigger = FileNameTrigger({"Brewfile", "Brewfile.*"}),
+        power_up = HomeBrewPowerUp,
+        priority = 70,
+        options = {update_existing = true}
+    }
+}
+```
+
+### 2. User Customizability
+Users can override the default matchers without touching code:
+
+```lua
+-- In user's .dodot.toml or pack-specific config
+matchers = {
+    -- User prefers "packages.txt" instead of "Brewfile" 
+    {
+        trigger = {type = "file_name", patterns = {"packages.txt"}},
+        power_up = "homebrew",
+        priority = 70
+    },
+    
+    -- User wants shell files in subdirectories
+    {
+        trigger = {
+            type = "file_name", 
+            patterns = {"*.sh"},
+            options = {recursive = true, exclude_patterns = {"setup.sh"}}
+        },
+        power_up = "shell_profile"
+    }
+}
+```
+
+## Proposed Trigger Types
+
+```lua
+-- File name/pattern matching
+local FileNameTrigger = function(patterns, options)
+    return {
+        type = "file_name",
+        patterns = patterns,  -- glob patterns
+        options = merge({
+            case_sensitive = true,
+            recursive = false,
+            exclude_patterns = {}
+        }, options)
+    }
+end
+
+-- Directory existence
+local DirectoryTrigger = function(dir_name, options) 
+    return {
+        type = "directory",
+        name = dir_name,
+        options = merge({
+            must_exist = true,
+            must_be_executable = false
+        }, options)
+    }
+end
+
+-- File content matching
+local ContentTrigger = function(pattern, options)
+    return {
+        type = "content",
+        pattern = pattern,  -- regex or literal
+        options = merge({
+            location = "anywhere", -- "first_line", "anywhere", "last_line"
+            max_file_size = 1024 * 1024 -- 1MB limit
+        }, options)
+    }
+end
+
+-- File extension
+local ExtensionTrigger = function(extensions)
+    return {
+        type = "extension", 
+        extensions = extensions -- {".sh", ".zsh", ".bash"}
+    }
+end
+
+-- Combination trigger (AND/OR logic)
+local CombinationTrigger = function(triggers, logic)
+    return {
+        type = "combination",
+        triggers = triggers,
+        logic = logic -- "and" or "or"
+    }
+end
+```
+
+## Enhanced Configuration Structure
+
+```lua
+-- Default system matchers (can be overridden)
+local system_matchers = {
+    -- Package managers
+    {
+        trigger = FileNameTrigger({"Brewfile", "Brewfile.*"}),
+        power_up = "homebrew",
+        priority = 80
+    },
+    
+    {
+        trigger = FileNameTrigger({"Pipfile", "requirements.txt"}),
+        power_up = "python_packages", 
+        priority = 80
+    },
+    
+    -- Shell configuration
+    {
+        trigger = CombinationTrigger({
+            FileNameTrigger({"alias*", "aliases*"}),
+            ExtensionTrigger({".sh", ".bash", ".zsh"})
+        }, "and"),
+        power_up = "shell_profile",
+        priority = 70
+    },
+    
+    -- Executable directories
+    {
+        trigger = DirectoryTrigger("bin", {must_exist = true}),
+        power_up = "path_add",
+        priority = 60
+    },
+    
+    -- Setup scripts
+    {
+        trigger = CombinationTrigger({
+            FileNameTrigger({"setup*", "install*"}),
+            ExtensionTrigger({".sh", ".bash"})
+        }, "and"),
+        power_up = "script_runner",
+        priority = 50
+    },
+    
+    -- Default symlink (lowest priority)
+    {
+        trigger = FileNameTrigger({"*"}), -- everything
+        power_up = "symlink_auto",
+        priority = 10,
+        options = {
+            exclude_if_matched_above = true -- skip if higher priority matched
+        }
+    }
+}
+```
+
+## Execution Flow Enhancement
+
+```lua
+-- Enhanced execution pipeline
+function get_firing_triggers(pack_path, matchers_config)
+    local active_matches = {}
+    
+    -- 1. Scan all files in pack
+    local all_files = scan_pack_files(pack_path)
+    
+    -- 2. Test each file against all matchers
+    for _, file_path in ipairs(all_files) do
+        for _, matcher in ipairs(matchers_config) do
+            if matcher.trigger:match(file_path, pack_path) then
+                table.insert(active_matches, {
+                    file_path = file_path,
+                    matcher = matcher,
+                    priority = matcher.priority
+                })
+            end
+        end
+    end
+    
+    -- 3. Resolve conflicts by priority
+    local resolved_matches = resolve_conflicts(active_matches)
+    
+    -- 4. Group by power-up for batch processing
+    return group_by_powerup(resolved_matches)
+end
+```
+
+## Benefits of This Architecture
+
+1. Flexibility: Users can easily customize which files trigger which behaviors
+2. Reusability: Same trigger types can be used for different power-ups
+3. Testability: Each component can be unit tested independently  
+4. Extensibility: New trigger types or power-ups can be added without affecting others
+5. Configuration: Everything is data-driven and configurable
+6. Conflict Resolution: Clear priority system for when multiple matchers match the same file
+
+This design also makes the system much more approachable for users who want to customize behavior - they just need to understand the matcher configuration format, not the internals of triggers or power-ups.
+
+Would you like me to elaborate on any specific aspect of this improved architecture?

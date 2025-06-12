@@ -1,229 +1,213 @@
-dodot's architectured
-                functional rolling over merged confs
+dodot's execution
+                
 
+1. Overview 
+    
+    This is the implementation side of dodot, read the docs/concepts-and-design.txxt for the reasoning.
 
-Functional, as much as possible
+        1. Get configuration , resolve DOTFILES dir.
+        2. Resolve pack name to paths, and validate (read access, no ignore, etc)  (validate packs)
+        3. Through each pack:  (get firing triggers): -> array of triggers matches and their powerups.
+            1. Resolve configuration including the pack's toml (if there is one)
+            2. run triggers and accumulate which one fires  (get firing triggers)
+        4.  Activate power up (gets a list of actions ) -> array of actions  per power-up
+            1. iterate the active triggers running their power-ups for each pack and accumulating their actions (get power-ups actions)
+        4. Plan Actions:  -> array of simple syntethic file systems operations to run 
+            1. iterating their actions and transforming the into fsynth operations (get fs operations)
+        4. Run: actually run these changes
+            1. Execute all operations (the fsynth lib does the execution) (run operations)
 
-    dodot's execution fits very well with functional programming, as there are
-    no UI, no deeply embedded hierachical domain of objects nor similar third
-    party libraries to leverage.
+    And the implementation for triggers, actions , power ups.
 
-    Hence, we will use a functionalish structure, that is, as functional as
-    reasonable, given that all we do is create side effects on user's systems.
+2. Libraries
+    
+    As we planned we either found or created lua libraries that handle an abstract lower level part of the 
+    problem. These are: 
 
-    We'll achieve this by using pure functions, and , instead of making changes
-    to a user's system as the program runs, we'll build a list of file system
-    operations to be ran. That is, the program will plan and accumulate all
-    that needs to be done, then do it in a isolated, small part of the code. As
-    long as we can keep the execution of this list bug free, we can have a high
-    degree of confidence on developing and testing functionally 99% of the
-    application.  More on this bellow.
+        - fysnth (https://luarocks.org/modules/arthur-debert/fsynth) 0.1.0 This is the we created for this 
+        specific problem and hence it should serve us well. it has an api for creating file system operations
+        and a runner to run it, as well as facilities for visualizing it.  /Users/adebert/h/lua/fsynth.lua/fsynth and 
+        /Users/adebert/h/lua/fsynth.lua/docs
 
+        - melt( https://luarocks.org/modules/arthur-debert/melt) 0.1.1 This rock allows you to declare a 
+    chain of configuration (can be files, env vars, command line options) and get back a unified one , 
+    merged in the right order. Locally source code and docs ~/h/lua/lua.melt/docs ~/h/lua/lua.melt/lua
+/Users/adebert/h/lua/lua.melt/docs:
 
-Execution Overview
 
-    Let's walkthrough what happens when a user runs: 
+3. Design
 
-        dodot deploy 
+    3.1. Functional Programming
+        
+        We favor a functional programming style for the various benefits that it allows. Given that the most 
+        difficult part to make functional are all file system operations, we should have no difficulty with the 
+        rest. 
 
-    Since the command does not specify a pack, we'll deploy the entire dotfiles
-    root. The first step is to find where that is. 
+        The domain is well suited for this. Somethings, like for example, the list of triggers and powerups, 
+        should  be passable as on optional arg, or dodot will fetch the default ones. This has the benefit 
+        of helping testability
 
-    Once we know where that it: 
-        - Get a list of pack candidates
-        - Validates these , which are now packs
-        - Deploy each pack
+    3.2 API Sketch
 
-    Both validating packs and which handlers to run in each map very well to
-    filters of files. 
+        
 
+            -- The api can be very functional: 
 
-    dodot features configuration, as in behavior specification on several
-    levels: 
+                local dotot =  require("dodot.core")
 
-        - The ones in dodot's core (say the list of available handlers)
-        - DOTFILES_ROOT configuration (same as user config)
-        - Pack configuration (a .dodot.toml file inside it.)
-        - Handler configuration (content in said file)
+                local potential_packs = dodot.get_pack_candidates(dotfiles_root)
+                local packs = dodot.get_packs(potential_packs)
+                local active_triggers= dodot.get_firing_triggers(packs) -- don't pass the second arg triggers
+                local actions =- dodot.get_action_list(active_triggers) -- don't pass actions
+                local fs_operations = get_fs_ops(actions)
+                fsynth.run(fs_operations)
 
-    As expected newer configurations override previous ones, that is a pack
-    configuration will win over a user, which would win over dodot's defaults.
+            -- lua
 
-    Hence, at various times we will collect configuration and merge it with the
-    current one, giving precedence to the new one.  
+        I'm being simplistic, but this is the sketch of the api / main handlers. For actions, power-ups and 
+        trigers,  the receives the trigger definitions as second param
+                dodot.get_firing_triggers(packs, triggers) 
+        Which if not provided with default to dodot.config.get_triggers()
 
+    3.3 DataTypes
 
-    By running the filtering of dirs to pack candidates, from pack candidates
-    to packs , and packs handlers ,we'll end up with a hierarchical list of
-    handlers to run.
+        We need to both settle on the data type design as well as the which ones do we nee for Triggers,
+         Power-ups and Actions .  (power-ups are defined and described in the concept problem)
 
-    Once we have that, we'll "run" all these handlers but, instead of changing
-    the file system , we'll generate a big list of small fs operations.
+4. Execution Plan
 
-    Up to now we can keep the program fully functional, and hence, easy to test
-    and reason about.
+    We'll do the implementation in phases, selecting both features and functionalities to focus incrementally.
+    
+    1. Reducing scope
+        
+        Since the core use is the deploy command (everything else will be it's helper commands) that is 
+        the one we want to do first. 
 
-    We finally process the operations queue and thus finish our execution.
+        a. Core PowerUps
 
-    **Error Handling during Execution:**
-    Should an error occur while the `fs-operation-runner` is executing operations for a specific pack,
-    the operations for that particular pack will be halted. However, `dodot` will attempt to
-    continue processing subsequent packs in a best-effort manner. Critical system-level errors,
-    such as "disk out of space," may halt the entire process. Detailed logging of all operations
-    and any errors encountered will be crucial for diagnostics.
+            Instead of working on all powerups at once, we'll work on a smaller subset that is quite of all 
+            things that powerups needs to do, as well as good triggers tests beds and so forth.
 
-    **Rollback and Recovery:**
-    A deliberate design choice is to not implement an automatic rollback or "undeploy" feature.
-    Attempting to perfectly reverse all possible file system operations and handler actions
-    (e.g., script executions) is complex and can lead to a false sense of security, as not all
-    actions are truly reversible. Instead, `dodot` will focus on providing:
-        - Detailed logging of every change made.
-        - Temporary backups of any files that are deleted or moved during an operation.
-    This information will empower users to manually revert changes if necessary.
+            We'll do: 
 
+                - symlink power up (to user home)
+                - profile powerup (add things to your shell)
+                - bin powerup (add paths)
 
-    Now we have a good introduction to the various parts that make dodot work.
+            These exercise most triggers needed and actions while not being extensive.
 
-    - dotfiles-root finder
-    - pack-candiates-searcher
-    - pack-verifiers
-    - configuration-fetcher
-    - configuration-merger
-    - handler-fecher
-    - handler-merger
-    - handler-runner
-    - fs-operation-runner
+        b. No Customization
 
-    Outside the obvious flow, from a user's request we have: 
+            The use of melt allowes us to normalize user customization in a black box way. Hence we will at 
+            first work with the non customization ideas, but, will keep the stubs for get_merged_config... 
+            When the time comes, we should just change these to actually use melt.
 
-    - handler-config-loader: loads the handlers definitions.
+        c. No file operations. 
 
-    This list is of dúbios utility, as the dotfiles root finder is a three line
-    thing, while the handler runner gets way more complicated.
+            We rely and trust on fsynth do execute a batch of synthetic ops into real fs changes, hence, 
+            while in the  very end we should have a couple of full integration tests to verify, we can mostly
+            presuppose that can stop at the final operations list.
 
-    Lets talk about the components in more detail .
+    2. Registries
 
+        We want all matchers, triggers, actions and powerups to be user extensible at some point, that is
+        they are open systems, and hence they won't be hardcoded. All these will use a registry sytem, 
+        lua/utils/registry.lua will handle. 
 
-Dotfiles Root Finder
+         -- the registry
+            local registry = require("dodot.utils.registry")
 
-    The simplest of things, it will look for a environment variable or the
-    current working directory. Returns the path to the dotfiles root.
+            triggers = registry.new()
+            triggers.add("file_name", FileNameTrigger)
+            triggers.get( key)
+            triggers.remove.. triggers list...
 
-Pack Candidate Searcher
+        the core dodot object will have
+        
+        dodot.libs.triggers , dodot.libs.actions, etc 
+        
+        The init for each category should be responsible for registring them (as in 
+        dodot/actions/init.lua will register the actions and so forth)
 
-    Given such path, this piece will generate a list of possible packs.  
-    It performs only minor, very crude checking. Thins like has to be a dir, we
-    have to have read aces to it's contents and it can't be empty.
+        Because all of these are simple tables with names objects, they are easy to mock during testing
 
 
-Master looper
+    d. Layout: 
 
-    Responsible for building the complete list of handlers to run. IT will run
-    the pack verifiers and end up with a handler queue to run.
+        Something like this
+        lua
+        └── dodot
+            ├── actions
+            ├── cli.lua - does argument parsing and then calls business logic
+            ├── libs.lua -> does the inital registry setup for each
+            ├── core - sample one file per phase 
+            │   ├── get_actions.lua
+            │   ├── get_firing_triggers
+            │   ├── get_fs_ops.lua
+            │   ├── get_packs.lua
+            │   ├── list_packs.lua
+            │   └── run_ops.lua
+            ├── commands
+            │   ├── list.lua
+                └── deploy.lua
+            ├── init.lua
+            ├── matchers - dir for the matchers
+            ├── powerups - dir for the powerups
+            ├── triggers - dir for the triggers
+            └── utils
+                └── registry.lua
 
-Pack Verifier
+    e. CLI Isolation
 
-    REcenving a validated path, from a file system perspecitive, the verifieer
-    will ensure that from the application logic, this is a pack. 
+        The entire system is to be implemented as pure business logic, that is the dodot.deploy module 
+        is only receiving full lua objects, not shell sargs. Likewise nothing prints to stdout.
 
-    The first thing it does, is to check for a pack configuration file
-    (.dodot.toml). If one is there, it loads it. 
+        the dodot/cli.lua file is responsible for parsing args, validating and calling the appropriate 
+        commands, but at that point, there is no cli.
 
-    If the config request this to be excluded, that's it. That's all the
-    processing this will receive. We''ll log it's exclusion but go no further,
-    not even listing it's files. 
+5. Phases: 
 
-    The reasons for this are: 
-        - Any processing done on a excluded package is gone to waste.
-        - Like it or not, we're about doing stuff with your files. Why risk any
-          bugs or issues at all?  
-        - Match user's expectations. Even listing the directory would break
-          this, as the user has specified: don't go here.
+    5.1 Infrasturcture
 
-    IF there is no exclusion request, it will then list the contents. If there
-    are no files besides the config one, there is nothing to do here as well.
+    The goal is to have all the pieces in places, so that later we fine tune this and work on each of the 
+    specifics (triggers, powerups, etc)
+    
+        - Implement the registry
+        - Implent code to validate packs
+        - implement the loops for run time stages (getting packs, validating, getting triggers, getting 
+        actions, getting operations) one by one in a controled and incremental manner
+        
+    5.2 Concept 
+    
+    We implement the first iterations of triggers , actions, etc, one by one as each power up needs them.
+    The goal here is to validate and hone the design, data types, etc.
 
-    At this point, we process all the data (path, config, contents) into a
-    pack_data object, which has reach information and will be the first
-    relevant data structure we'll use. 
+    - Implement the Core Powerups, one by one with the flow
 
-Handler Verifier
 
-    Each pack will loop through the list of available handlers. These will
-    check the pack_data , and decide if their trigger is there. If so, they
-    will return as active for that package.
+    5.3 Expansion
 
+    We finish all power-us and associated libs.
 
-    When all packs have ran through handler verifiers we are left with a
-    hierachical list of handlers to run.
+    5.4 Real World
 
-Handler Runner
+    We implement and test the final operations run, that is , running the actual synthetic operations 
+    into  fs changes.
 
-    With the handler queue to be ran, it will execute: 
+    The goal is to have confidence  that core value of the program works, the deploy command.
 
-        - setup operations: (like creating the directory in which shell aliases
-          will be linked from) and so on. These are a collective setup, not a
-          per handler thing.
-        - run each handler, wich returns an operations list.
-        - perform closing operations for group handlers.
+    5.5 Auxiliary commands
 
-    Rebeber that up to now, we're not changing anything on disk. We have a
-    operations queue to be performed to a user's system, but nothing has
-    happens yet.
+    Now we do the info, disable, etc, minor commands
 
-    If we're running in dry-mode, for example, we can just output this and
-    we're done. 
 
-Operation Executioner
+    5.6 The Acutal CLI
 
-    The piece to run the operation queue, which hopefully results in the user's
-    wishes.
+    With everything tested, we write the the dotot.cli.lua that parses and validates arguments and calls
+    dodot/commands/<command>.lua
 
-
-
-On Abstract FS Operations
-
-    Isolating all side efffect and keeping the code base 99% free of dealing
-    with actual file system has significant wins. Much easier to test, safer as
-    it constricts the risker parts of the code to a small isolated set of
-    primitives, dry runs for free and more. 
-
-    It does have drawbacks too. We can ignore the minor ones for now, and focus
-    on the big one: interdependence. 
-
-    Let me ilustrate. Say that operation 42 archives a directory. If operation
-    30 removed that directory, there is nothing for 42 to do.  That is, if
-    trans pack operations are dependent , everything will break.
-
-    This is no small detail. Looking at the use case in detail, the truth is
-    this will seldomly happen. The order of operations within a single pack's generated
-    list is maintained, but strict ordering guarantees across different packs are not
-    provided. When it does occur, the end result is very similar to running side
-    effects at collection time. We are mindful of the trade-off, but confident on
-    the benefit of the overall approach.
-
-    **Conflict Resolution:**
-    In the rare event that multiple packs attempt to manage the exact same target path
-    (e.g., two packs try to symlink different source files to `~/.config/app/config`),
-    the principle is that the last pack processed will "win," meaning its operation
-    will overwrite any previous ones for that specific path. However, well-structured
-    dotfiles and pack organization should generally prevent such direct conflicts.
-
-
-Triggers
-
-    Trigers are functions that, given a pack_data, will run the merged config
-    and check if that content trigger that function. IF they do, the trigger
-    will filter the data triggered, that is , affected.   
-
-
-Handlers
-
-    Handler will be given the pack_data, with the trigger and config, and will
-    return the sythetic operations to be performed.
-
-
-
-
-
-
+    5.7 customizations
+        One by one, inner releases for
+        - user wide customiztion
+        -  pack customiztion (toml file on pack)
+        -  command line args
