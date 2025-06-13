@@ -32,20 +32,21 @@ cat >.luacov <<EOL
 return {
   -- Modules to include in coverage analysis
   include = {
-    "lua/lual/",
-    "lual",
+    "^lua/dodot/",
+    "^dodot",
   },
   -- Modules to exclude from coverage analysis
   exclude = {
     "spec",
     "%.luarocks",
+    "busted",
   },
   -- Filename to store stats collected
   statsfile = "coverage/luacov.stats.out",
   -- Filename to store report
   reportfile = "coverage/luacov.report.out",
   -- Enable saving coverage stats
-  savestepdefaults = true,
+  savestepsize = 100,
   -- Run reporter on completion (useful for CI systems)
   runreport = true,
   -- Delete stats file after reporting (cleanup)
@@ -59,12 +60,9 @@ EOL
 
 echo "📋 Using updated LuaCov configuration..."
 
-# Set up LUA_PATH to include the current directory for module resolution
-export LUA_PATH="./?.lua;./?/init.lua;$LUA_PATH"
-
-# Run tests with coverage
+# Run tests with coverage using full path to busted
 echo "🧪 Running tests with coverage..."
-busted -c
+/opt/homebrew/bin/busted -c
 
 if [ $? -ne 0 ]; then
     echo "❌ Tests failed!"
@@ -76,7 +74,7 @@ echo "📊 Generating lcov.info file..."
 echo "" >coverage/lcov.info
 
 # Extract coverage data from luacov.report.out and convert to LCOV format
-grep "lua/lual/" coverage/luacov.report.out | grep "%" | while read -r line; do
+grep "lua/dodot/" coverage/luacov.report.out | grep "%" | while read -r line; do
     filename=$(echo "$line" | awk '{print $1}')
     hits=$(echo "$line" | awk '{print $2}')
     missed=$(echo "$line" | awk '{print $3}')
@@ -106,7 +104,7 @@ echo -e "${BOLD}📈 Coverage Summary (sorted by coverage % - highest first):${R
 echo "================================================================"
 
 # Extract and process coverage data from the report
-# We're looking for lines like "lua/lual/api.lua                         66   3      95.65%"
+# We're looking for lines like "lua/dodot/api.lua                         66   3      95.65%"
 grep "lua/" coverage/luacov.report.out | grep "%" | sort -k4 -nr | while IFS= read -r line; do
     # Extract the coverage percentage and convert to integer (remove % and decimal)
     coverage_str=$(echo "$line" | awk '{print $NF}' | sed 's/%//')
@@ -134,19 +132,23 @@ echo "================================================================"
 
 # Show the total line with appropriate coloring
 total_line=$(grep "^Total" coverage/luacov.report.out)
-total_coverage_str=$(echo "$total_line" | awk '{print $4}' | sed 's/%//')
-total_coverage_int=$(echo "$total_coverage_str" | sed 's/\.//' | sed 's/^0*//')
+if [ -n "$total_line" ]; then
+    total_coverage_str=$(echo "$total_line" | awk '{print $4}' | sed 's/%//')
+    total_coverage_int=$(echo "$total_coverage_str" | sed 's/\.//' | sed 's/^0*//')
 
-if [ -z "$total_coverage_int" ] || [ "$total_coverage_int" = "" ]; then
-    total_coverage_int=0
-fi
+    if [ -z "$total_coverage_int" ] || [ "$total_coverage_int" = "" ]; then
+        total_coverage_int=0
+    fi
 
-if [ "$total_coverage_int" -ge 8500 ]; then
-    echo -e "${BOLD}${GREEN}$total_line${RESET}"
-elif [ "$total_coverage_int" -ge 6500 ]; then
-    echo -e "${BOLD}${YELLOW}$total_line${RESET}"
+    if [ "$total_coverage_int" -ge 8500 ]; then
+        echo -e "${BOLD}${GREEN}$total_line${RESET}"
+    elif [ "$total_coverage_int" -ge 6500 ]; then
+        echo -e "${BOLD}${YELLOW}$total_line${RESET}"
+    else
+        echo -e "${BOLD}${RED}$total_line${RESET}"
+    fi
 else
-    echo -e "${BOLD}${RED}$total_line${RESET}"
+    echo "⚠️ No total coverage line found in report"
 fi
 
 echo ""
