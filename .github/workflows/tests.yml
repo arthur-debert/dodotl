@@ -34,18 +34,6 @@ jobs:
           sudo apt-get update
           xargs -a .github/apt-packages.txt sudo apt-get install -y --no-install-recommends
 
-      - name: Configure LuaRocks for Lua 5.4
-        run: |
-          # Configure LuaRocks to use Lua 5.4 explicitly
-          sudo luarocks config lua_version 5.4
-          sudo luarocks config lua_interpreter lua5.4
-          sudo luarocks config system_config_dir /etc/luarocks54
-          # Verify configuration
-          echo "LuaRocks configuration:"
-          luarocks config --lua-version=5.4
-          echo "Lua version being used:"
-          lua5.4 -v
-
       - name: Get latest rockspec filename
         id: get-rockspec
         env:
@@ -61,9 +49,9 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.luarocks # Corrected path for where --local installs
-          key: ${{ runner.os }}-luarocks-5.4-${{ hashFiles(steps.get-rockspec.outputs.rockspec_file) }}
+          key: ${{ runner.os }}-luarocks-${{ hashFiles(steps.get-rockspec.outputs.rockspec_file) }}
           restore-keys: |
-            ${{ runner.os }}-luarocks-5.4-
+            ${{ runner.os }}-luarocks-
 
       - name: print me
         run: |
@@ -71,7 +59,7 @@ jobs:
       - name: Install Lua dependencies
         if: steps.cache-lua-deps.outputs.cache-hit != 'true'
         run: |
-          luarocks install --lua-version=5.4 --tree .luarocks --only-deps ${{ steps.get-rockspec.outputs.rockspec_file }}
+          luarocks install --tree .luarocks --only-deps ${{ steps.get-rockspec.outputs.rockspec_file }}
       # on macos, busted comes with luarocks, but not on ubuntu:
       # Busted should now be installed via apt from .github/apt-packages.txt
       - name: Run tests
