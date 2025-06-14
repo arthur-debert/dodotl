@@ -3,7 +3,6 @@ package = "dodot"
 version = "0.1.1-1"
 source = {
   url = "git+https://github.com/arthur-debert/dodotl",
-  branch="jules_wip_7086130812279463177"
 }
 description = {
   summary = "A dotfile manager.",
