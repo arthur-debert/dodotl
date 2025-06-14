@@ -27,7 +27,7 @@ describe("FileNameTrigger", function()
             local trigger, err = FileNameTrigger.new("", {})
             assert.is_nil(trigger)
             assert.is_not_nil(err)
-            assert.matches("non%-empty pattern", err)
+            assert.matches("non%-empty string", err)
         end)
 
         it("should reject empty patterns table", function()

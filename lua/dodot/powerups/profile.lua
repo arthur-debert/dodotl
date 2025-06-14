@@ -56,7 +56,7 @@ local function expand_home_path(path)
 end
 
 local ProfilePowerup = {
-    name = "shell_profile", -- Changed name
+    name = "shell_profile",   -- Changed name
     type = "profile_powerup", -- Internal type can remain if desired, or align too
 
     -- Process matched files and generate profile modification actions
@@ -66,6 +66,21 @@ local ProfilePowerup = {
         end
 
         options = options or {} -- Ensure options table exists
+
+        -- Validate action_type upfront
+        if options.action_type then
+            local valid_actions = { "source", "append", "export_vars" }
+            local valid = false
+            for _, valid_action in ipairs(valid_actions) do
+                if options.action_type == valid_action then
+                    valid = true
+                    break
+                end
+            end
+            if not valid then
+                return nil, "Unsupported action_type: " .. options.action_type
+            end
+        end
 
         -- Parse options
         local shell = options.shell or detect_shell()
@@ -202,7 +217,7 @@ local ProfilePowerup = {
 -- Create a new ProfilePowerup instance
 function ProfilePowerup.new()
     local instance = {
-        name = "shell_profile", -- Changed name
+        name = "shell_profile",  -- Changed name
         type = "profile_powerup" -- Internal type can remain
     }
 

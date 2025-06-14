@@ -15,8 +15,10 @@ describe("ShellAddPathPowerup", function()
         os.getenv = function(var)
             if var == "HOME" then
                 return "/home/user"
+            elseif var == "SHELL" then
+                return nil -- Default to nil so detect_shell falls back to "bash"
             else
-                return original_home
+                return nil
             end
         end
     end)
@@ -190,8 +192,15 @@ describe("ShellAddPathPowerup", function()
         it("should detect shell if not specified in options", function()
             -- Mock os.getenv("SHELL") to return /bin/zsh for this test
             local old_getenv = os.getenv
-            os.getenv = function(var) if var == "SHELL" then return "/bin/zsh" elseif var == "HOME" then return
-                    "/home/user" else return old_getenv(var) end end
+            os.getenv = function(var)
+                if var == "SHELL" then
+                    return "/bin/zsh"
+                elseif var == "HOME" then
+                    return "/home/user"
+                else
+                    return old_getenv(var)
+                end
+            end
 
             local options = { bin_dir = "/opt/bin" }
             local actions, err = powerup:process({}, "/pack", options)
