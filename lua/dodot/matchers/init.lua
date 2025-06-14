@@ -78,14 +78,86 @@ end
 
 -- For backward compatibility with get_firing_triggers.lua
 function M.get_simulated_matchers()
-    -- Return the original stub configuration for backward compatibility
+    -- Return real matcher configurations that should work with the test fixtures
     return {
         {
-            matcher_name = "stub_matcher_1",
-            trigger_name = "stub_file_name_trigger", -- use existing stub for now
-            power_up_name = "stub_symlink_powerup",  -- use existing stub for now
-            priority = 10,                           -- original priority for compatibility
-            options = { simulated_option = true }    -- original options for compatibility
+            matcher_name = "gitconfig_matcher",
+            trigger_name = "file_name",
+            power_up_name = "symlink",
+            priority = 5,
+            options = {
+                pattern = ".gitconfig",
+                target_dir = "~"
+            }
+        },
+        {
+            matcher_name = "gitignore_matcher",
+            trigger_name = "file_name",
+            power_up_name = "symlink",
+            priority = 6,
+            options = {
+                pattern = ".gitignore",
+                target_dir = "~"
+            }
+        },
+        {
+            matcher_name = "dotfiles_matcher",
+            trigger_name = "file_name",
+            power_up_name = "symlink",
+            priority = 10,
+            options = {
+                pattern = ".git*", -- Match .gitconfig, .gitignore, etc.
+                target_dir = "~"
+            }
+        },
+        {
+            matcher_name = "config_dirs_matcher",
+            trigger_name = "directory",
+            power_up_name = "symlink",
+            priority = 15,
+            options = {
+                pattern = "nvim",
+                target_dir = "~/.config"
+            }
+        },
+        {
+            matcher_name = "alias_files_matcher",
+            trigger_name = "file_name",
+            power_up_name = "shell_profile",
+            priority = 20,
+            options = {
+                pattern = "alias.sh",
+                action_type = "source"
+            }
+        },
+        {
+            matcher_name = "env_files_matcher",
+            trigger_name = "file_name",
+            power_up_name = "shell_profile",
+            priority = 25,
+            options = {
+                pattern = "env.sh",
+                action_type = "source"
+            }
+        },
+        {
+            matcher_name = "vars_files_matcher",
+            trigger_name = "file_name",
+            power_up_name = "shell_profile",
+            priority = 30,
+            options = {
+                pattern = "vars.sh",
+                action_type = "source"
+            }
+        },
+        {
+            matcher_name = "bin_dirs_matcher",
+            trigger_name = "directory",
+            power_up_name = "shell_add_path",
+            priority = 35,
+            options = {
+                pattern = "bin"
+            }
         }
     }, nil
 end
