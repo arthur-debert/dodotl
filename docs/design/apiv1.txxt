@@ -14,7 +14,17 @@
 
 2. Core Data Types
 
-    2.1 Trigger Interface
+    2.1 Pack Structure
+        
+        A pack represents a discovered dotfile directory.
+
+            local pack = {
+                path = "string",        -- absolute path to pack directory
+                name = "string",        -- pack name (directory basename)
+                config = table or nil   -- pack-specific configuration
+            }
+
+    2.2 Trigger Interface
         
         A trigger is a pure function that determines if a file should be processed.
         All triggers implement this interface:
@@ -29,33 +39,36 @@
                 end
             }
 
-    2.2 Power-up Interface
+    2.3 Power-up Interface
         
         A power-up processes matched files and returns a list of actions.
 
             local power_up = {
                 name = "string",        -- power-up identifier
-                process = function(matched_files, pack_path, options)
+                process = function(self, matched_files, pack_path, options)
                     -- matched_files: array of {path, metadata} 
                     -- Returns: array_of_actions, error_message_or_nil
                 end,
-                validate = function(matched_files, pack_path, options)
+                validate = function(self, matched_files, pack_path, options)
                     -- Returns: boolean, error_message
                 end
             }
 
-    2.3 Matcher Configuration
+    2.4 TriggerMatch Structure
         
-        Matchers connect triggers to power-ups with priority and options.
+        Represents a successful match made by a trigger via matcher configuration.
 
-            local matcher = {
-                trigger = trigger_instance,
-                power_up = "power_up_name",
-                priority = number,      -- higher wins conflicts
-                options = {}            -- passed to power-up.process
+            local trigger_match = {
+                trigger_name = "string",    -- name of trigger that fired
+                file_path = "string",       -- matched file path
+                pack_path = "string",       -- pack containing the file
+                metadata = table or nil,    -- trigger-provided metadata
+                power_up_name = "string",   -- power-up to invoke
+                priority = number,          -- matcher priority
+                options = table or nil      -- options for power-up
             }
 
-    2.4 Action Types
+    2.5 Action Types
         
         Actions represent high-level operations to be performed.
 
@@ -63,18 +76,19 @@
                 type = "string",        -- action type
                 description = "string", -- human readable
                 data = {},             -- action-specific data
-                pack_source = "string", -- source pack
-                priority = number       -- execution order
+                pack_source = "string", -- source pack name
+                metadata = {}          -- additional metadata
             }
 
 3. Standard Trigger Types
 
     3.1 FileNameTrigger
         
-        Matches files based on glob patterns.
+        Matches files based on glob patterns with advanced options.
 
             local file_trigger = FileNameTrigger.new(patterns, options)
 
+        Patterns: string or array of glob patterns
         Options:
             case_sensitive = boolean (default: true)
             recursive = boolean (default: false)
@@ -98,25 +112,16 @@
 
         Extensions: array of strings like {".sh", ".zsh", ".bash"}
 
-    3.4 ContentTrigger
-        
-        Matches files by content patterns.
-
-            local content_trigger = ContentTrigger.new(pattern, options)
-
-        Options:
-            location = "first_line" | "anywhere" | "last_line"
-            max_file_size = number (default: 1MB)
-
 4. Standard Power-ups
 
-    4.1 link
+    4.1 symlink
         
         Creates symlinks to files and directories.
 
             Actions produced: link
             Options: 
-                base = "home" | "xdg_config" (default: "home")
+                target_dir = "~" | "~/path" | "/absolute/path" (default: "~")
+                create_dirs = boolean (default: true)
                 overwrite = boolean (default: false)
                 backup = boolean (default: false)
 
@@ -134,139 +139,109 @@
             Actions produced: shell_add_path
             Options: prepend, shell_types
 
-    4.4 homebrew
+5. Registry System
+
+    5.1 Component Registration
         
-        Installs packages via Homebrew.
+        All components are managed through a registry system:
 
-            Actions produced: brew_install
-            Options: update_existing, install_casks
+            local libs = require("dodot.libs")
+            libs.init() -- Initialize all registries
+            
+            -- Access registries
+            local trigger_class, err = libs.triggers.get("file_name")
+            local powerup_instance, err = libs.powerups.get("symlink")
 
-    4.5 script_runner
+    5.2 Built-in Components
         
-        Executes setup scripts.
-
-            Actions produced: script_run
-            Options: run_once, working_directory
-
-5. Configuration API
-
-    5.1 Default Matchers
-        
-        The system provides sensible defaults:
-
-            local default_matchers = {
-                -- Package managers (highest priority)
-                {
-                    trigger = FileNameTrigger.new({"Brewfile", "Brewfile.*"}),
-                    power_up = "homebrew",
-                    priority = 80
-                },
-                
-                -- Shell configuration
-                {
-                    trigger = FileNameTrigger.new({"alias.*", "aliases.*"}),
-                    power_up = "shell_profile",
-                    priority = 70
-                },
-                
-                -- Executable directories
-                {
-                    trigger = DirectoryTrigger.new("bin"),
-                    power_up = "shell_add_path", 
-                    priority = 60
-                },
-                
-                -- Default symlink (lowest priority)
-                {
-                    trigger = FileNameTrigger.new({".*"}),
-                    power_up = "link",
-                    priority = 10
-                }
-            }
-
-    5.2 User Customization
-        
-        Users can override matchers in .dodot.toml:
-
-            [matchers]
-            [[matchers.add]]
-            trigger = {type = "file_name", patterns = ["packages.txt"]}
-            power_up = "homebrew"
-            priority = 85
+        The system automatically registers built-in components:
+            - Triggers: file_name, directory, extension
+            - Power-ups: symlink, shell_profile, shell_add_path
 
 6. Core API Functions
 
     6.1 Main Pipeline
         
-            local dodot = require("dodot.core")
+            local get_packs = require("dodot.core.get_packs")
+            local get_firing_triggers = require("dodot.core.get_firing_triggers")
+            local get_actions = require("dodot.core.get_actions")
+            local get_fs_ops = require("dodot.core.get_fs_ops")
+            local run_ops = require("dodot.core.run_ops")
 
-            -- 1. Discover packs
-            local packs = dodot.get_packs(dotfiles_root)
+            -- 1. Discover pack candidates
+            local candidates, err = get_packs.get_pack_candidates(dotfiles_root)
             
-            -- 2. Get active matchers (default + user config)
-            local matchers = dodot.get_matchers(config)
+            -- 2. Create pack objects
+            local packs, err = get_packs.get_packs(candidates)
             
-            -- 3. Find matches across all packs
-            local matches = dodot.get_matches(packs, matchers)
+            -- 3. Find firing triggers (matches)
+            local trigger_matches, err = get_firing_triggers.get_firing_triggers(packs)
             
             -- 4. Generate actions from matches
-            local actions = dodot.get_actions(matches)
+            local actions, err = get_actions.get_actions(trigger_matches)
             
             -- 5. Convert to filesystem operations
-            local operations = dodot.get_operations(actions)
+            local operations, err = get_fs_ops.get_fs_ops(actions)
             
-            -- 6. Execute with fsynth
-            local results = fsynth.execute(operations)
+            -- 6. Execute operations
+            local results, err = run_ops.run_ops(operations)
 
-    6.2 Matcher Resolution
+    6.2 Pack Discovery
         
-            function dodot.get_matches(packs, matchers)
-                local all_matches = {}
-                
-                for _, pack in ipairs(packs) do
-                    local pack_files = scan_pack(pack.path)
-                    
-                    for _, file in ipairs(pack_files) do
-                        for _, matcher in ipairs(matchers) do
-                            local matched, metadata = matcher.trigger:match(file, pack.path)
-                            if matched then
-                                table.insert(all_matches, {
-                                    file = file,
-                                    pack = pack,
-                                    matcher = matcher,
-                                    metadata = metadata
-                                })
-                            end
-                        end
-                    end
-                end
-                
-                return resolve_conflicts(all_matches)
+            function get_pack_candidates(dotfiles_root)
+                -- Scans dotfiles_root for valid pack directories
+                -- Filters out hidden directories and invalid paths
+                -- Returns: array of candidate paths, error
             end
 
-    6.3 Action Generation
-        
-            function dodot.get_actions(matches)
-                local actions = {}
-                local grouped = group_by_powerup(matches)
-                
-                for power_up_name, match_group in pairs(grouped) do
-                    local power_up = get_power_up(power_up_name)
-                    local files = extract_files(match_group)
-                    local options = merge_options(match_group)
-                    
-                    local power_up_actions = power_up:process(files, options)
-                    for _, action in ipairs(power_up_actions) do
-                        table.insert(actions, action)
-                    end
-                end
-                
-                return sort_by_priority(actions)
+            function get_packs(pack_candidate_paths)
+                -- Converts candidate paths to Pack objects
+                -- Validates each pack structure
+                -- Returns: array of Pack objects, error
             end
 
-7. Action to Operation Mapping
+    6.3 Trigger Matching
+        
+            function get_firing_triggers(packs)
+                -- For each pack, scan files and test against matchers
+                -- Uses configured matcher system to determine matches
+                -- Groups matches by power-up and options
+                -- Returns: array of TriggerMatch objects, error
+            end
 
-    7.1 Action Types to fsynth Operations
+    6.4 Action Generation
+        
+            function get_actions(trigger_matches)
+                -- Groups trigger matches by power-up and options
+                -- Invokes power-up.process() for each group
+                -- Collects all generated actions
+                -- Returns: array of Action objects, error
+            end
+
+7. Matcher System
+
+    7.1 Default Matchers
+        
+        The system provides basic matcher configurations through the matcher registry:
+
+            local matchers = require("dodot.matchers")
+            local matcher_configs, err = matchers.get_simulated_matchers()
+
+    7.2 BasicMatcher Implementation
+        
+        Matchers connect triggers to power-ups with configuration:
+
+            local matcher_config = {
+                matcher_name = "string",
+                trigger_name = "string",
+                power_up_name = "string", 
+                priority = number,
+                options = {}
+            }
+
+8. Action to Operation Mapping
+
+    8.1 Action Types to fsynth Operations
         
             link -> fsynth.op.symlink
             shell_source -> fsynth.op.create_file + fsynth.op.symlink
@@ -274,33 +249,41 @@
             brew_install -> fsynth.op.script_run
             script_run -> fsynth.op.script_run
 
-    7.2 Operation Builder
+    8.2 Operation Builder
         
-            function build_operations(actions)
-                local operations = {}
-                
-                for _, action in ipairs(actions) do
-                    local builders = operation_builders[action.type]
-                    if builders then
-                        local ops = builders(action)
-                        for _, op in ipairs(ops) do
-                            table.insert(operations, op)
-                        end
-                    end
-                end
-                
-                return operations
+            function get_fs_ops(actions)
+                -- Converts high-level actions to fsynth operations
+                -- Handles action-specific data transformation
+                -- Returns: array of Operation objects, error
             end
 
-8. Testing and Validation
+9. Error Handling
 
-    8.1 Dry Run Support
+    9.1 Error System
+        
+        Centralized error handling with error codes:
+
+            local errors = require("dodot.errors")
+            local err = errors.create("ERROR_CODE", details)
+
+    9.2 Common Error Codes
+        
+            INVALID_DOTFILES_ROOT
+            PACK_ACCESS_DENIED
+            TRIGGER_NOT_FOUND
+            POWERUP_NOT_FOUND
+            POWERUP_EXECUTION_FAILED
+            POWERUP_VALIDATION_FAILED
+
+10. Testing and Validation
+
+    10.1 Dry Run Support
         
         All operations support dry-run mode via fsynth:
 
             local results = fsynth.execute(operations, {dry_run = true})
 
-    8.2 Validation Pipeline
+    10.2 Validation Pipeline
         
         Each component validates its inputs:
 
@@ -309,36 +292,42 @@
             
             -- Power-up validation  
             local valid, err = power_up:validate(files, pack_path, options)
-            
-            -- Operation validation
-            local valid, err = operation:validate()
 
-9. Configuration Integration
+11. Command Line Interface
 
-    9.1 Melt Integration
+    11.1 CLI Structure
         
-        Configuration loading uses the melt library:
+        The CLI provides user-facing commands:
 
-            local config = melt.load({
-                {type = "file", path = "~/.dodot.toml"},
-                {type = "file", path = pack_path .. "/.dodot.toml"},
-                {type = "env", prefix = "DODOT_"},
-                {type = "defaults", values = default_config}
-            })
+            local cli = require("dodot.cli")
+            local deploy = require("dodot.commands.deploy")
+            local list = require("dodot.commands.list")
 
-    9.2 Pack-specific Overrides
+    11.2 Main Commands
         
-        Each pack can override matchers:
+            deploy  -- Execute the full dotfile deployment pipeline
+            list    -- List discovered packs and their contents
 
-            [matchers]
-            disable = ["homebrew", "script_runner"]
-            
-            [[matchers.add]]
-            trigger = {type = "file_name", patterns = ["*.custom"]}
-            power_up = "custom_handler"
-            priority = 90
+12. Library Integration
 
-This API design provides a clean separation of concerns while maintaining the flexibility 
-to handle diverse dotfile configurations. The matcher system allows users to customize 
-behavior without modifying code, and the integration with fsynth provides robust 
-filesystem operation handling.
+    12.1 External Dependencies
+        
+        The system integrates with external libraries:
+
+            penlight (pl) -- File system operations and utilities
+            fsynth       -- Safe filesystem operations (planned)
+            melt         -- Configuration loading (planned)
+
+    12.2 Registry Pattern
+        
+        Generic registry implementation for extensibility:
+
+            local registry = require("dodot.utils.registry")
+            local reg = registry.new()
+            reg.add("name", component)
+            local component, err = reg.get("name")
+
+This API design reflects the actual implementation with its registry-based architecture,
+modular core pipeline, and separation of concerns between triggers, power-ups, and 
+matchers. The system provides a solid foundation for dotfile management while 
+maintaining extensibility and testability.
