@@ -33,14 +33,32 @@ function M.get_firing_triggers(packs)
             for _, file_name in ipairs(pack_files) do
                 local full_file_path = pl_path.join(pack.path, file_name)
                 for _, matcher_config in ipairs(matcher_configs) do
-                    local trigger_instance, trigger_err = libs.triggers.get(matcher_config.trigger_name)
+                    local trigger_class, trigger_err = libs.triggers.get(matcher_config.trigger_name)
                     if trigger_err then return nil, trigger_err end
-                    if not trigger_instance then
+                    if not trigger_class then
                         return nil,
                             errors.create("TRIGGER_NOT_FOUND", "Trigger not found: " .. matcher_config.trigger_name)
                     end
 
-                    if type(trigger_instance.match) ~= "function" then
+                    -- Create trigger instance with configuration from matcher
+                    local trigger_instance
+                    if matcher_config.trigger_name == "file_name" and matcher_config.options and matcher_config.options.pattern then
+                        -- For file_name triggers, create instance with pattern from matcher options
+                        trigger_instance = trigger_class.new(matcher_config.options.pattern)
+                    elseif type(trigger_class.match) == "function" then
+                        -- For stub triggers that don't need configuration, use the class directly
+                        trigger_instance = trigger_class
+                    else
+                        return nil,
+                            errors.create("INVALID_TRIGGER_CONFIG",
+                                {
+                                    trigger_name = matcher_config.trigger_name,
+                                    reason =
+                                    "don't know how to create instance"
+                                })
+                    end
+
+                    if not trigger_instance or type(trigger_instance.match) ~= "function" then
                         return nil,
                             errors.create("INVALID_TRIGGER_CONFIG",
                                 { trigger_name = matcher_config.trigger_name, reason = "missing match function" })

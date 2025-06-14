@@ -53,51 +53,25 @@ describe("dodot.core.get_firing_triggers", function()
   end)
 
   it("should return a trigger match if a matcher's trigger matches", function()
-    -- We need to mock matchers.get_simulated_matchers to return a controlled BasicMatcher instance
+    -- We need to mock matchers.get_simulated_matchers to return a controlled matcher configuration
     local mock_matchers_module = require("dodot.matchers")
-    local mock_basic_matcher = require("dodot.matchers.basic_matcher")
-    local mock_file_name_trigger = require("dodot.triggers.file_name")
 
-    -- Create a real FileNameTrigger that will match our specific file
-    local matching_trigger_instance, terr = mock_file_name_trigger.FileNameTrigger.new({ patterns = "specific_match.txt" })
-    assert.is_not_nil(matching_trigger_instance, "Failed to create FileNameTrigger: " .. tostring(terr))
+    -- Create a matcher configuration that specifies the file_name trigger with pattern
+    local matcher_config = {
+      matcher_name = "test_specific_matcher",
+      trigger_name = "file_name",
+      power_up_name = "test_powerup",
+      options = {
+        pattern = "specific_match.txt",
+        some_option = true
+      },
+      priority = 100
+    }
 
-    -- Create a BasicMatcher instance with this trigger
-    local matcher_instance, merr = mock_basic_matcher.BasicMatcher.new({
-        matcher_name = "test_specific_matcher",
-        trigger_type = "file_name",
-        trigger_options = { patterns = "specific_match.txt" },
-        power_up_name = "test_powerup",
-        power_up_options = { some_option = true },
-        priority = 100
-    })
-    assert.is_not_nil(matcher_instance, "Failed to create BasicMatcher: " .. tostring(merr))
-    -- Ensure the trigger inside is correctly instantiated (mocking libs.triggers.get for BasicMatcher.new)
-    local original_libs_triggers_get = libs.triggers.get
-    libs.triggers.get = function(trigger_type)
-        if trigger_type == "file_name" then return mock_file_name_trigger end
-        return original_libs_triggers_get(trigger_type) -- fallback for other types if any
-    end
-    -- Re-create matcher instance with the proper mock for its internal trigger creation
-    matcher_instance, merr = mock_basic_matcher.BasicMatcher.new({
-        matcher_name = "test_specific_matcher",
-        trigger_type = "file_name",
-        trigger_options = { patterns = "specific_match.txt" },
-        power_up_name = "test_powerup",
-        power_up_options = { some_option = true },
-        priority = 100
-    })
-    assert.is_not_nil(matcher_instance, "Failed to create BasicMatcher (with mock): " .. tostring(merr))
-    assert.equals("file_name", matcher_instance.trigger.type)
-    libs.triggers.get = original_libs_triggers_get -- Restore immediately
-
-
-    -- Spy on and mock get_simulated_matchers
-    -- Ensure matchers_module is the actual table returned by require
+    -- Spy on and mock get_simulated_matchers to return our test configuration
     assert.is_table(mock_matchers_module, "mock_matchers_module is not a table")
     assert.is_function(mock_matchers_module.get_simulated_matchers, "get_simulated_matchers is not a function on module")
-    spy.on(mock_matchers_module, "get_simulated_matchers")
-    mock_matchers_module.get_simulated_matchers:returns({ matcher_instance }, nil)
+    stub(mock_matchers_module, "get_simulated_matchers").returns({ matcher_config }, nil)
 
 
     local pack1_path = pl_path.join(temp_dir, "pack_match_test")
@@ -116,18 +90,18 @@ describe("dodot.core.get_firing_triggers", function()
 
     if #matches == 1 then
       local match_result = matches[1]
-      assert.equals(matcher_instance.trigger.type, match_result.trigger_name)
+      assert.equals(matcher_config.trigger_name, match_result.trigger_name)
       assert.equals(file_to_match, match_result.file_path)
       assert.equals(pack1_path, match_result.pack_path)
       assert.is_table(match_result.metadata)
       assert.is_not_nil(match_result.metadata.matched_pattern)
-      assert.equals(matcher_instance.power_up_name, match_result.power_up_name)
-      assert.equals(matcher_instance.priority, match_result.priority)
-      assert.same(matcher_instance.options, match_result.options)
+      assert.equals(matcher_config.power_up_name, match_result.power_up_name)
+      assert.equals(matcher_config.priority, match_result.priority)
+      assert.same(matcher_config.options, match_result.options)
     end
 
-    -- Restore spy
-    spy.restore(mock_matchers_module.get_simulated_matchers)
+    -- Restore stub
+    mock_matchers_module.get_simulated_matchers:revert()
   end)
 
   -- This test case is now obsolete as trigger fetching/validation is part of matcher creation/validation
@@ -135,10 +109,9 @@ describe("dodot.core.get_firing_triggers", function()
   --     assert.is_true(true, "Test obsolete: Trigger validation handled by BasicMatcher")
   -- end)
 
--- end) -- This end was orphaned by commenting out the test above it.
-      -- The following lines seem to be remnants of a test and are not inside an 'it' block.
-      -- Removing them to fix syntax error.
-      -- assert.is_true(true, "Skipping direct test for missing trigger in registry (covered by get_simulated_matchers init)")
+  -- end) -- This end was orphaned by commenting out the test above it.
+  -- The following lines seem to be remnants of a test and are not inside an 'it' block.
+  -- Removing them to fix syntax error.
+  -- assert.is_true(true, "Skipping direct test for missing trigger in registry (covered by get_simulated_matchers init)")
   -- end) -- This end is also part of the remnant.
-
 end)
