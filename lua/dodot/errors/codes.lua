@@ -24,6 +24,7 @@ local M = {
         -- Trigger/Matcher Errors
         "INVALID_TRIGGER_CONFIG",
         "TRIGGER_VALIDATION_FAILED",
+        "TRIGGER_NOT_FOUND",
         "MATCHER_CONFLICT",
 
         -- Power-up Errors
@@ -36,6 +37,8 @@ local M = {
         "FILE_NOT_FOUND",
         "SYMLINK_FAILED",
         "FSYNTH_OPERATION_FAILED",
+        "INVALID_ACTION_DATA",
+        -- "MISSING_HOME_DIR", -- Removed duplicate, will keep the one under System Errors for clarity
 
         -- CLI Errors
         "INVALID_COMMAND_ARGS",
@@ -44,7 +47,9 @@ local M = {
         -- System Errors
         "DUPLICATE_ERROR_CODE",
         "UNKNOWN_ERROR_CODE",
-        "INVALID_ERROR_DATA"
+        "INVALID_ERROR_DATA",
+        "MISSING_HOME_DIR", -- Added new error code
+        "UNSUPPORTED_SHELL" -- Added for shell_add_path action
     },
 
     messages = {
@@ -69,6 +74,7 @@ local M = {
         -- Trigger/Matcher Errors
         INVALID_TRIGGER_CONFIG = "Invalid trigger in %s: %s",
         TRIGGER_VALIDATION_FAILED = "Trigger validation failed for %s: %s",
+        TRIGGER_NOT_FOUND = "Trigger not found: %s",
         MATCHER_CONFLICT = "Matcher conflict between %s and %s",
 
         -- Power-up Errors
@@ -81,6 +87,8 @@ local M = {
         FILE_NOT_FOUND = "File not found: %s",
         SYMLINK_FAILED = "Failed to create symlink from %s to %s",
         FSYNTH_OPERATION_FAILED = "File system operation failed: %s",
+        INVALID_ACTION_DATA = "Invalid action data for type %s: %s",
+        -- MISSING_HOME_DIR = "User home directory could not be determined.", -- Removed shorter message
 
         -- CLI Errors
         INVALID_COMMAND_ARGS = "Invalid command arguments: %s",
@@ -89,7 +97,10 @@ local M = {
         -- System Errors
         DUPLICATE_ERROR_CODE = "Error code '%s' already exists",
         UNKNOWN_ERROR_CODE = "Unknown error code: %s",
-        INVALID_ERROR_DATA = "Invalid error data for code %s: %s"
+        INVALID_ERROR_DATA = "Invalid error data for code %s: %s",
+        MISSING_HOME_DIR =
+        "User home directory could not be determined. Failed to find HOME or USERPROFILE environment variables",
+        UNSUPPORTED_SHELL = "Unsupported shell type: %s"
     }
 }
 

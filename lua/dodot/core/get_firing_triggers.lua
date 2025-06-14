@@ -7,34 +7,21 @@ local pl_dir = require("pl.dir") -- For pl_dir.getfiles
 
 local M = {}
 
-local function get_simulated_matchers()
+local function get_matchers()
     if not libs.is_initialized() then libs.init() end
 
-    if not libs.triggers.has("stub_file_name_trigger") then
-        return nil, errors.create("UNKNOWN_ERROR_CODE", "Stub trigger 'stub_file_name_trigger' not found in registry.")
-    end
-    if not libs.powerups.has("stub_symlink_powerup") then
-        return nil, errors.create("UNKNOWN_ERROR_CODE", "Stub powerup 'stub_symlink_powerup' not found in registry.")
-    end
-
-    return {
-        {
-            matcher_name = "stub_matcher_1",
-            trigger_name = "stub_file_name_trigger",
-            power_up_name = "stub_symlink_powerup",
-            priority = 10,
-            options = { simulated_option = true }
-        }
-    }, nil
+    -- Use the matcher system to get configured matchers
+    local matchers = require("dodot.matchers")
+    return matchers.get_simulated_matchers()
 end
 
 function M.get_firing_triggers(packs)
     if not libs.is_initialized() then libs.init() end
 
     local all_trigger_matches = {}
-    local simulated_matchers, err = get_simulated_matchers()
+    local matcher_configs, err = get_matchers()
     if err then return nil, err end
-    if not simulated_matchers or #simulated_matchers == 0 then return {}, nil end -- Adjusted check
+    if not matcher_configs or #matcher_configs == 0 then return {}, nil end
 
     for _, pack in ipairs(packs) do
         local pack_files, list_err = pl_dir.getfiles(pack.path)
@@ -45,15 +32,36 @@ function M.get_firing_triggers(packs)
             if not pack_files then pack_files = {} end
             for _, file_name in ipairs(pack_files) do
                 local full_file_path = pl_path.join(pack.path, file_name)
-                for _, matcher_config in ipairs(simulated_matchers) do
-                    local trigger_instance, trigger_err = libs.triggers.get(matcher_config.trigger_name)
+                for _, matcher_config in ipairs(matcher_configs) do
+                    local trigger_class, trigger_err = libs.triggers.get(matcher_config.trigger_name)
                     if trigger_err then return nil, trigger_err end
-                    if not trigger_instance then
-                        return nil, errors.create("TRIGGER_NOT_FOUND", "Trigger not found: " .. matcher_config.trigger_name)
+                    if not trigger_class then
+                        return nil,
+                            errors.create("TRIGGER_NOT_FOUND", "Trigger not found: " .. matcher_config.trigger_name)
                     end
 
-                    if type(trigger_instance.match) ~= "function" then
-                        return nil, errors.create("INVALID_TRIGGER_CONFIG", {trigger_name = matcher_config.trigger_name, reason = "missing match function"})
+                    -- Create trigger instance with configuration from matcher
+                    local trigger_instance
+                    if matcher_config.trigger_name == "file_name" and matcher_config.options and matcher_config.options.pattern then
+                        -- For file_name triggers, create instance with pattern from matcher options
+                        trigger_instance = trigger_class.new(matcher_config.options.pattern)
+                    elseif type(trigger_class.match) == "function" then
+                        -- For stub triggers that don't need configuration, use the class directly
+                        trigger_instance = trigger_class
+                    else
+                        return nil,
+                            errors.create("INVALID_TRIGGER_CONFIG",
+                                {
+                                    trigger_name = matcher_config.trigger_name,
+                                    reason =
+                                    "don't know how to create instance"
+                                })
+                    end
+
+                    if not trigger_instance or type(trigger_instance.match) ~= "function" then
+                        return nil,
+                            errors.create("INVALID_TRIGGER_CONFIG",
+                                { trigger_name = matcher_config.trigger_name, reason = "missing match function" })
                     end
 
                     local matched, metadata = trigger_instance:match(full_file_path, pack.path)

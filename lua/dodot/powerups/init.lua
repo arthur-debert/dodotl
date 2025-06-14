@@ -1,9 +1,13 @@
 -- Power-ups module initialization
 -- Registers all built-in power-ups with the registry system
 
+local symlink = require("dodot.powerups.symlink")
+local profile = require("dodot.powerups.profile")
+local bin = require("dodot.powerups.bin")
+
 local M = {}
 
--- Example Stub PowerUp
+-- Example Stub PowerUp (keeping for backward compatibility)
 local StubSymlinkPowerUp = {
     name = "symlink_stub",
     -- A conforming process function for a power-up
@@ -22,10 +26,16 @@ local StubSymlinkPowerUp = {
 
 -- Register all built-in power-ups
 function M.register_powerups(registry)
-    -- Phase 3.3-3.5 deliverables will add actual powerups like:
-    -- - Symlink power-up
-    -- - Profile power-up
-    -- - Bin power-up
+    -- Phase 3.3: Symlink power-up
+    registry.add("symlink", symlink.SymlinkPowerup)
+
+    -- Phase 3.4: Profile power-up
+    registry.add("shell_profile", profile.ProfilePowerup) -- Changed name
+
+    -- Phase 3.5: Bin power-up
+    registry.add("shell_add_path", bin.ShellAddPathPowerup) -- Changed name and module field
+
+    -- Keep stub for backward compatibility
     registry.add("stub_symlink_powerup", StubSymlinkPowerUp)
 end
 
