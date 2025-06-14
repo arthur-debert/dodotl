@@ -1,6 +1,8 @@
 -- DirectoryTrigger implementation
--- Matches files based on directory path patterns
+-- Matches files based on directory path patterns, with options for filesystem checks.
 
+local pl_path = require("pl.path") -- For path manipulation, though not strictly used in this version
+-- Use global posix to allow for test mocking
 local M = {}
 
 local function create_glob_pattern(pattern)
@@ -54,48 +56,58 @@ local DirectoryTrigger = {
     type = "directory",
 
     -- Match function that checks if a file's directory matches the pattern
-    match = function(self, file_path, pack_path)
+    match = function(self, file_path, pack_path) -- file_path here is the path to the directory itself
         if not file_path then
             return false, nil
         end
 
-        -- Get the directory part of the file path
-        local dir_path = file_path:match("(.*/)")
-        if not dir_path then
-            -- File is in root directory
-            dir_path = ""
+        -- The path to match against the glob pattern is file_path itself,
+        -- made relative to pack_path if pack_path is a prefix.
+        local path_to_glob_match = file_path
+        if pack_path and file_path:sub(1, #pack_path) == pack_path then
+            path_to_glob_match = file_path:sub(#pack_path + 1)
+            -- Remove leading slash if present after making relative, for consistency
+            if path_to_glob_match:sub(1, 1) == "/" or path_to_glob_match:sub(1, 1) == "\\" then
+                path_to_glob_match = path_to_glob_match:sub(2)
+            end
+        end
+        -- If file_path was already relative or not under pack_path, path_to_glob_match remains file_path
+        -- This logic might need refinement based on how DirectoryTrigger is used (e.g. with absolute paths from config)
+
+        local glob_matches
+        if self.pattern:match("%*%*") then
+            glob_matches = self:match_double_wildcard(path_to_glob_match)
         else
-            -- Remove trailing slash
-            dir_path = dir_path:sub(1, -2)
+            glob_matches = path_to_glob_match:match(self.lua_pattern) ~= nil
         end
 
-        -- Make path relative to pack_path if it's an absolute path within the pack
-        if pack_path and dir_path:sub(1, #pack_path) == pack_path then
-            dir_path = dir_path:sub(#pack_path + 2) -- +2 to skip the following /
-            if not dir_path then
-                dir_path = ""
+        if not glob_matches then
+            return false, nil
+        end
+
+        -- Filesystem checks (using the original absolute file_path for these)
+        if self.options.must_exist then
+            local posix = _G.posix or require("posix")
+            if not posix.access(file_path, "f") then
+                return false, nil -- Directory does not exist
             end
         end
 
-        -- Special handling for ** patterns
-        local matches = false
-        if self.pattern:match("%*%*") then
-            matches = self:match_double_wildcard(dir_path)
-        else
-            -- Test against the regular glob pattern
-            matches = dir_path:match(self.lua_pattern) ~= nil
+        if self.options.must_be_executable then
+            local posix = _G.posix or require("posix")
+            if not posix.access(file_path, "x") then
+                return false, nil -- Directory not executable
+            end
         end
 
-        local metadata = nil
-        if matches then
-            metadata = {
-                matched_pattern = self.pattern,
-                directory = dir_path,
-                full_path = file_path
-            }
-        end
-
-        return matches, metadata
+        -- If all checks pass
+        local metadata = {
+            matched_pattern = self.pattern,
+            directory = path_to_glob_match, -- This is the part that matched the glob
+            full_path = file_path,          -- The original full path
+            options_used = self.options
+        }
+        return true, metadata
     end,
 
     -- Special matching for double wildcard patterns
@@ -126,33 +138,55 @@ local DirectoryTrigger = {
 
     -- Validate the trigger configuration
     validate = function(self)
-        if not self.pattern then
+        if self.pattern == nil then -- Allow empty string for pattern (root)
             return false, "DirectoryTrigger pattern cannot be nil"
         end
+        if type(self.pattern) ~= "string" then
+            return false, "DirectoryTrigger pattern must be a string"
+        end
 
-        -- Test that the pattern compiles to a valid Lua pattern
         local success, err = pcall(string.match, "test", self.lua_pattern)
         if not success then
             return false,
                 "Invalid directory pattern: " .. self.pattern .. " (Lua pattern error: " .. tostring(err) .. ")"
         end
 
+        if self.options.must_exist ~= nil and type(self.options.must_exist) ~= "boolean" then
+            return false, "DirectoryTrigger must_exist option must be a boolean"
+        end
+        if self.options.must_be_executable ~= nil and type(self.options.must_be_executable) ~= "boolean" then
+            return false, "DirectoryTrigger must_be_executable option must be a boolean"
+        end
+
         return true, nil
     end
 }
 
--- Initialize the trigger with pattern configuration
-function DirectoryTrigger.new(pattern)
-    if pattern == nil then
-        return nil, "DirectoryTrigger requires a pattern (use empty string for root directory)"
+function DirectoryTrigger.new(pattern, options)
+    if pattern == nil then -- Empty string "" is allowed for root-like matching
+        return nil, "DirectoryTrigger requires a non-nil pattern (use empty string for root directory)"
     end
+    if type(pattern) ~= "string" then
+        return nil, "DirectoryTrigger pattern must be a string"
+    end
+
+    options = options or {}
+
+    local instance_options = {
+        must_exist = options.must_exist == nil and true or options.must_exist,
+        must_be_executable = options.must_be_executable or false
+    }
 
     local instance = {
         type = "directory",
         pattern = pattern,
+        options = instance_options,
         lua_pattern = create_glob_pattern(pattern)
     }
     setmetatable(instance, { __index = DirectoryTrigger })
+
+    -- Don't validate during construction - let validate() method handle it
+    -- This allows tests to create instances with invalid options for testing
     return instance
 end
 

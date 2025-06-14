@@ -89,6 +89,39 @@ describe("SymlinkPowerup", function()
             assert.matches("create_dirs must be a boolean", err)
         end)
 
+        it("should accept valid overwrite and backup options", function()
+            local options = { overwrite = true, backup = false }
+            local valid, err = powerup:validate({}, "/pack", options)
+            assert.is_true(valid)
+            assert.is_nil(err)
+
+            options = { overwrite = false, backup = true }
+            valid, err = powerup:validate({}, "/pack", options)
+            assert.is_true(valid)
+            assert.is_nil(err)
+
+            options = { overwrite = true, backup = true }
+            valid, err = powerup:validate({}, "/pack", options)
+            assert.is_true(valid)
+            assert.is_nil(err)
+        end)
+
+        it("should reject invalid overwrite option type", function()
+            local options = { overwrite = "true" }
+            local valid, err = powerup:validate({}, "/pack", options)
+            assert.is_false(valid)
+            assert.is_not_nil(err)
+            assert.matches("overwrite must be a boolean", err)
+        end)
+
+        it("should reject invalid backup option type", function()
+            local options = { backup = "false" }
+            local valid, err = powerup:validate({}, "/pack", options)
+            assert.is_false(valid)
+            assert.is_not_nil(err)
+            assert.matches("backup must be a boolean", err)
+        end)
+
         it("should reject file without path", function()
             local matched_files = { { metadata = {} } }
             local valid, err = powerup:validate(matched_files, "/pack", {})
@@ -142,18 +175,27 @@ describe("SymlinkPowerup", function()
 
             -- Check first action
             local action1 = actions[1]
-            assert.equals("symlink", action1.type)
-            assert.equals("/pack/vimrc", action1.source_path)
-            assert.matches("%.vimrc$", action1.target_path) -- Should end with .vimrc
-            assert.is_true(action1.create_dirs)
+            assert.equals("link", action1.type)
+            assert.is_string(action1.description)
+            assert.matches("Link file /pack/vimrc to ", action1.description)
+            assert.is_table(action1.data)
+            assert.equals("/pack/vimrc", action1.data.source_path)
+            assert.matches("%.vimrc$", action1.data.target_path) -- Should end with .vimrc
+            assert.is_true(action1.data.create_dirs)
+            assert.is_false(action1.data.overwrite) -- Check default
+            assert.is_false(action1.data.backup)    -- Check default
             assert.equals("symlink", action1.metadata.powerup)
             assert.equals("vimrc", action1.metadata.relative_source)
 
             -- Check second action
             local action2 = actions[2]
-            assert.equals("symlink", action2.type)
-            assert.equals("/pack/bashrc", action2.source_path)
-            assert.matches("%.bashrc$", action2.target_path) -- Should end with .bashrc
+            assert.equals("link", action2.type)
+            assert.is_string(action2.description)
+            assert.is_table(action2.data)
+            assert.equals("/pack/bashrc", action2.data.source_path)
+            assert.matches("%.bashrc$", action2.data.target_path) -- Should end with .bashrc
+            assert.is_false(action2.data.overwrite) -- Check default
+            assert.is_false(action2.data.backup)    -- Check default
         end)
 
         it("should generate symlink actions for subdirectory of home", function()
@@ -169,9 +211,11 @@ describe("SymlinkPowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.equals("symlink", action.type)
-            assert.equals("/pack/config.ini", action.source_path)
-            assert.matches("%.config/config%.ini$", action.target_path)
+            assert.equals("link", action.type)
+            assert.is_string(action.description)
+            assert.is_table(action.data)
+            assert.equals("/pack/config.ini", action.data.source_path)
+            assert.matches("%.config/config%.ini$", action.data.target_path)
         end)
 
         it("should generate symlink actions for absolute directory", function()
@@ -187,9 +231,11 @@ describe("SymlinkPowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.equals("symlink", action.type)
-            assert.equals("/pack/script.sh", action.source_path)
-            assert.equals("/usr/local/bin/script.sh", action.target_path)
+            assert.equals("link", action.type)
+            assert.is_string(action.description)
+            assert.is_table(action.data)
+            assert.equals("/pack/script.sh", action.data.source_path)
+            assert.equals("/usr/local/bin/script.sh", action.data.target_path)
         end)
 
         it("should respect create_dirs option", function()
@@ -205,7 +251,8 @@ describe("SymlinkPowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.is_false(action.create_dirs)
+            assert.is_table(action.data)
+            assert.is_false(action.data.create_dirs)
         end)
 
         it("should default create_dirs to true", function()
@@ -221,7 +268,8 @@ describe("SymlinkPowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.is_true(action.create_dirs)
+            assert.is_table(action.data)
+            assert.is_true(action.data.create_dirs)
         end)
 
         it("should preserve original metadata", function()
@@ -237,6 +285,7 @@ describe("SymlinkPowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
+            assert.is_table(action.metadata)
             assert.is_table(action.metadata.original_metadata)
             assert.equals("test", action.metadata.original_metadata.trigger)
             assert.equals("*.txt", action.metadata.original_metadata.pattern)
@@ -254,7 +303,52 @@ describe("SymlinkPowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.matches("%.file%.txt$", action.target_path) -- Should end with .file.txt
+            assert.is_table(action.data)
+            assert.matches("%.file%.txt$", action.data.target_path) -- Should end with .file.txt
+            assert.is_false(action.data.overwrite) -- Default
+            assert.is_false(action.data.backup)    -- Default
+        end)
+
+        it("should respect overwrite option", function()
+            local matched_files = { { path = "/pack/file.txt", metadata = {} } }
+            local options = { overwrite = true }
+            local actions, err = powerup:process(matched_files, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_true(actions[1].data.overwrite)
+            assert.is_false(actions[1].data.backup) -- Should remain default
+        end)
+
+        it("should respect backup option", function()
+            local matched_files = { { path = "/pack/file.txt", metadata = {} } }
+            local options = { backup = true }
+            local actions, err = powerup:process(matched_files, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_false(actions[1].data.overwrite) -- Should remain default
+            assert.is_true(actions[1].data.backup)
+        end)
+
+        it("should respect both overwrite and backup options", function()
+            local matched_files = { { path = "/pack/file.txt", metadata = {} } }
+            local options = { overwrite = true, backup = true }
+            local actions, err = powerup:process(matched_files, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_true(actions[1].data.overwrite)
+            assert.is_true(actions[1].data.backup)
+        end)
+
+        it("should correctly set defaults for overwrite and backup when other options are present", function()
+            local matched_files = { { path = "/pack/file.txt", metadata = {} } }
+            local options = { target_dir = "/tmp", create_dirs = false }
+            local actions, err = powerup:process(matched_files, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_false(actions[1].data.overwrite)
+            assert.is_false(actions[1].data.backup)
+            assert.is_false(actions[1].data.create_dirs)
+            assert.equals("/tmp/file.txt", actions[1].data.target_path)
         end)
     end)
 end)

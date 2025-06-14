@@ -56,8 +56,8 @@ local function expand_home_path(path)
 end
 
 local ProfilePowerup = {
-    name = "profile",
-    type = "profile_powerup",
+    name = "shell_profile",   -- Changed name
+    type = "profile_powerup", -- Internal type can remain if desired, or align too
 
     -- Process matched files and generate profile modification actions
     process = function(self, matched_files, pack_path, options)
@@ -65,73 +65,70 @@ local ProfilePowerup = {
             return {}, nil -- No files to process
         end
 
-        -- Parse options
-        local shell = options and options.shell or detect_shell()
-        local profile_file = get_profile_file(shell, options and options.profile_preference)
+        options = options or {} -- Ensure options table exists
 
-        if not profile_file then
+        -- Validate action_type upfront
+        if options.action_type then
+            local valid_actions = { "source", "append", "export_vars" }
+            local valid = false
+            for _, valid_action in ipairs(valid_actions) do
+                if options.action_type == valid_action then
+                    valid = true
+                    break
+                end
+            end
+            if not valid then
+                return nil, "Unsupported action_type: " .. options.action_type
+            end
+        end
+
+        -- Parse options
+        local shell = options.shell or detect_shell()
+        local profile_file_name = get_profile_file(shell, options.profile_preference)
+
+        if not profile_file_name then
             return nil, "Unsupported shell: " .. shell
         end
 
-        local action_type = options and options.action_type or "source"
+        local method = options.action_type or "source" -- Renamed for clarity within data
         local home = os.getenv("HOME") or "~"
-        local target_profile = pl_path.join(home, profile_file)
+        local target_profile_path = pl_path.join(home, profile_file_name)
+        local order = options.order or 50 -- Default order, e.g., 50
 
         local actions = {}
 
         for _, file_info in ipairs(matched_files) do
             local source_path = file_info.path
             local relative_path = pl_path.relpath(source_path, pack_path)
+            local description = "Manage shell profile for " .. source_path .. " in " .. shell
 
-            local action
+            local action_data = {
+                method = method,
+                source_file = source_path,
+                profile_file = target_profile_path,
+                shell = shell,
+                order = order,
+            }
 
-            if action_type == "source" then
-                -- Generate action to source the file in profile
-                action = {
-                    type = "profile_source",
-                    profile_file = target_profile,
-                    source_file = source_path,
-                    shell = shell,
-                    metadata = {
-                        powerup = "profile",
-                        action_type = "source",
-                        relative_source = relative_path,
-                        original_metadata = file_info.metadata
-                    }
-                }
-            elseif action_type == "append" then
-                -- Generate action to append file contents to profile
-                action = {
-                    type = "profile_append",
-                    profile_file = target_profile,
-                    source_file = source_path,
-                    shell = shell,
-                    metadata = {
-                        powerup = "profile",
-                        action_type = "append",
-                        relative_source = relative_path,
-                        original_metadata = file_info.metadata
-                    }
-                }
-            elseif action_type == "export_vars" then
-                -- Generate action to export variables from file
-                action = {
-                    type = "profile_export_vars",
-                    profile_file = target_profile,
-                    source_file = source_path,
-                    shell = shell,
-                    export_prefix = options and options.export_prefix or "",
-                    metadata = {
-                        powerup = "profile",
-                        action_type = "export_vars",
-                        relative_source = relative_path,
-                        original_metadata = file_info.metadata
-                    }
-                }
-            else
-                return nil, "Unsupported action_type: " .. action_type
+            if method == "export_vars" then
+                action_data.export_prefix = options.export_prefix or ""
+                description = "Export variables from " .. source_path .. " into " .. shell .. " profile"
+            elseif method == "append" then
+                description = "Append " .. source_path .. " to " .. shell .. " profile"
+            else -- source
+                description = "Source " .. source_path .. " into " .. shell .. " profile"
             end
 
+            local action = {
+                type = "shell_source",
+                description = description,
+                data = action_data,
+                metadata = {
+                    powerup_name = self.name, -- Use the new name
+                    relative_source = relative_path,
+                    original_metadata = file_info.metadata
+                }
+            }
             table.insert(actions, action)
         end
 
@@ -188,6 +185,10 @@ local ProfilePowerup = {
             if options.export_prefix and type(options.export_prefix) ~= "string" then
                 return false, "ProfilePowerup export_prefix must be a string"
             end
+
+            if options.order ~= nil and type(options.order) ~= "number" then
+                return false, "ProfilePowerup order must be a number"
+            end
         end
 
         -- Validate each file
@@ -216,8 +217,8 @@ local ProfilePowerup = {
 -- Create a new ProfilePowerup instance
 function ProfilePowerup.new()
     local instance = {
-        name = "profile",
-        type = "profile_powerup"
+        name = "shell_profile",  -- Changed name
+        type = "profile_powerup" -- Internal type can remain
     }
 
     setmetatable(instance, { __index = ProfilePowerup })
