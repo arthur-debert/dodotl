@@ -9,7 +9,7 @@ local action_to_op_builder = {
     link_stub = function(action)
         -- Validate action.data structure for link_stub if needed
         if not action.data or not action.data.src or not action.data.dest then
-            return nil, errors.create("INVALID_ACTION_DATA", {action_type = "link_stub", reason = "Missing src or dest in data"})
+            return nil, errors.create("INVALID_ACTION_DATA", { "link_stub", "Missing src or dest in data" })
         end
         return {
             {
@@ -44,7 +44,7 @@ function M.get_fs_ops(actions_list)
                         for _, op in ipairs(result) do
                             table.insert(operations, op)
                         end
-                    -- else: builder might validly return nil or non-table if no ops for valid action data
+                        -- else: builder might validly return nil or non-table if no ops for valid action data
                     end
                 else
                     print("Critical error in builder for action type " .. action.type .. ": " .. tostring(result))
