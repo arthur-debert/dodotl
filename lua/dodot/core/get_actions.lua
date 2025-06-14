@@ -3,6 +3,7 @@ local libs = require("dodot.libs")
 local types = require("dodot.types")
 local errors = require("dodot.errors")
 local pl_path = require("pl.path")
+local logger = require("lual").logger("dodot.core.actions")
 
 local M = {}
 
@@ -54,7 +55,9 @@ function M.get_actions(trigger_matches_list)
         end
 
         if type(powerup_instance.process) ~= "function" then
-            return nil, errors.create("POWERUP_VALIDATION_FAILED", {powerup_name = group_info.power_up_name, reason = "missing process function"})
+            return nil,
+                errors.create("POWERUP_VALIDATION_FAILED",
+                    { powerup_name = group_info.power_up_name, reason = "missing process function" })
         end
 
         -- Prepare files_for_powerup from matches_payload
@@ -66,11 +69,13 @@ function M.get_actions(trigger_matches_list)
         -- Determine pack_source_name for this group (all files in a group are from the same pack_path)
         local pack_source_name_for_action = pl_path.basename(group_info.pack_path)
 
-        local generated_actions, err = powerup_instance:process(files_for_powerup, group_info.pack_path, group_info.options)
+        local generated_actions, err = powerup_instance:process(files_for_powerup, group_info.pack_path,
+            group_info.options)
         if err then
             -- Wrap error from powerup into a dodot error object
             local err_message = (type(err) == "table" and err.message or tostring(err))
-            return nil, errors.create("POWERUP_EXECUTION_FAILED", {powerup_name = group_info.power_up_name, reason = err_message})
+            return nil,
+                errors.create("POWERUP_EXECUTION_FAILED", { powerup_name = group_info.power_up_name, reason = err_message })
         end
 
         if generated_actions then -- Ensure generated_actions is not nil
@@ -80,6 +85,7 @@ function M.get_actions(trigger_matches_list)
                 end
                 -- Potentially validate action_data against types.is_action if available
                 table.insert(all_actions, action_data)
+                logger.debug("action_data", action_data)
             end
         end
     end
