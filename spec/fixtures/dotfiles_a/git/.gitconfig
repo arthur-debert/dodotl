@@ -1,0 +1,27 @@
+[user]
+	email = debert@gmail.com
+	name = adebert
+[pull]
+	ff = only
+	rebase = true
+[push]
+	autoSetupRemote = true
+[init]
+	defaultBranch = main
+[filter "lfs"]
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+[diff]
+	tool = vscode
+[difftool "vscode"]
+	cmd = code --wait --diff $LOCAL $REMOTE
+[merge]
+	tool = vscode
+[mergetool "vscode"]
+	cmd = code --wait $MERGED
+[difftool]
+	prompt = false
+[mergetool]
+	prompt = false

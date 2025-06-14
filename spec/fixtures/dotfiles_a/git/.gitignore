@@ -1,0 +1,47 @@
+############################################
+# OSX
+############################################
+.DS_Store
+brew/Brewfile.lock.json
+
+############################################
+# Windows
+############################################
+Thumbs.db
+
+############################################
+# Dev
+############################################
+.vscode
+
+############################################
+# General working files
+############################################
+*.swp
+*.tmp
+*~
+
+############################################
+# Security: try to avoid disaster
+############################################
+
+# here we want to exclude the private keys.
+*private*
+.ssh/*
+# it's safer to exclude everything in ssh, then whitelist public
+! .ssh/*.pub
+# everything that gnugpc says it's private
+*/gnupgp/private*
+# this is for gcloud, but sounds sane
+*credentials.db
+*access_tokens.db
+
+############################################
+# Logs, just for good measure
+############################################
+*/logs/*
+*.log
+
+############################################
+# Project specific goes here
+############################################g

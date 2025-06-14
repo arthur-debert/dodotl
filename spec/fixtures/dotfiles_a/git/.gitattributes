@@ -1,0 +1,6 @@
+*.tiff filter=lfs diff=lfs merge=lfs
+*.fit filter=lfs diff=lfs merge=lfs
+*.xisf filter=lfs diff=lfs merge=lfs
+*.sql filter=lfs diff=lfs merge=lfs
+*.psd filter=lfs diff=lfs merge=lfs
+# Add other file types as needed
