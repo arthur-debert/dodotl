@@ -38,6 +38,7 @@ local M = {
         "SYMLINK_FAILED",
         "FSYNTH_OPERATION_FAILED",
         "INVALID_ACTION_DATA",
+        -- "MISSING_HOME_DIR", -- Removed duplicate, will keep the one under System Errors for clarity
 
         -- CLI Errors
         "INVALID_COMMAND_ARGS",
@@ -46,7 +47,8 @@ local M = {
         -- System Errors
         "DUPLICATE_ERROR_CODE",
         "UNKNOWN_ERROR_CODE",
-        "INVALID_ERROR_DATA"
+        "INVALID_ERROR_DATA",
+        "MISSING_HOME_DIR" -- Added new error code
     },
 
     messages = {
@@ -85,6 +87,7 @@ local M = {
         SYMLINK_FAILED = "Failed to create symlink from %s to %s",
         FSYNTH_OPERATION_FAILED = "File system operation failed: %s",
         INVALID_ACTION_DATA = "Invalid action data for type %s: %s",
+        -- MISSING_HOME_DIR = "User home directory could not be determined.", -- Removed shorter message
 
         -- CLI Errors
         INVALID_COMMAND_ARGS = "Invalid command arguments: %s",
@@ -93,7 +96,8 @@ local M = {
         -- System Errors
         DUPLICATE_ERROR_CODE = "Error code '%s' already exists",
         UNKNOWN_ERROR_CODE = "Unknown error code: %s",
-        INVALID_ERROR_DATA = "Invalid error data for code %s: %s"
+        INVALID_ERROR_DATA = "Invalid error data for code %s: %s",
+        MISSING_HOME_DIR = "User home directory could not be determined. Failed to find HOME or USERPROFILE environment variables"
     }
 }
 

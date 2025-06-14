@@ -360,14 +360,11 @@ dodot Implementation and Execution
         **Deliverable 4.2: fsynth Integration**
         Tasks:
         - Integrate fsynth library for operations
-        - Implement operation execution wrapper
         - Add fsynth configuration management
-        - Create integration tests
         
         Success Criteria:
         - ✓ fsynth integration functional
         - ✓ Operations execute through fsynth
-        - ✓ Integration tests pass
 
         **Deliverable 4.3: Dry-run Support**
         Tasks:
@@ -381,7 +378,15 @@ dodot Implementation and Execution
         - ✓ Operation preview shows expected changes
         - ✓ Dry-run tests pass
 
-        **Deliverable 4.4: Error Handling and Rollback**
+        **Deliverable 4.4: fsynth execution**
+        Tasks:
+        - Implement operation execution wrapper
+        - Create integration tests
+        
+        Success Criteria:
+        - ✓ Integration tests pass
+        
+        **Deliverable 4.5: Error Handling and Rollback**
         Tasks:
         - Implement operation error handling
         - Create rollback functionality
