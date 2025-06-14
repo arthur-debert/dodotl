@@ -15,9 +15,12 @@ local SymlinkPowerup = {
         end
 
         -- Default options
-        local target_dir = options and options.target_dir or "~"
-        local create_dirs = options and options.create_dirs
+        options = options or {} -- Ensure options table exists
+        local target_dir = options.target_dir or "~"
+        local create_dirs = options.create_dirs
         if create_dirs == nil then create_dirs = true end -- default to true
+        local overwrite = options.overwrite or false -- default to false
+        local backup = options.backup or false       -- default to false
 
         local actions = {}
 
@@ -41,12 +44,17 @@ local SymlinkPowerup = {
 
             -- Create the symlink action
             local action = {
-                type = "symlink",
-                source_path = source_path,
-                target_path = target_path,
-                create_dirs = create_dirs,
+                type = "link", -- Changed from "symlink"
+                description = "Link file " .. source_path .. " to " .. target_path,
+                data = {
+                    source_path = source_path,
+                    target_path = target_path,
+                    create_dirs = create_dirs,
+                    overwrite = overwrite,
+                    backup = backup,
+                },
                 metadata = {
-                    powerup = "symlink",
+                    powerup = "symlink", -- Keep internal powerup name for metadata if desired
                     relative_source = relative_path,
                     original_metadata = file_info.metadata
                 }
@@ -81,6 +89,12 @@ local SymlinkPowerup = {
 
             if options.create_dirs ~= nil and type(options.create_dirs) ~= "boolean" then
                 return false, "SymlinkPowerup create_dirs must be a boolean"
+            end
+            if options.overwrite ~= nil and type(options.overwrite) ~= "boolean" then
+                return false, "SymlinkPowerup overwrite must be a boolean"
+            end
+            if options.backup ~= nil and type(options.backup) ~= "boolean" then
+                return false, "SymlinkPowerup backup must be a boolean"
             end
         end
 
