@@ -49,22 +49,56 @@ describe("dodot.core.get_firing_triggers", function()
 
     assert.is_nil(err, err and err.message or "nil error expected")
     assert.is_table(matches)
-    assert.equals(0, #matches, "Expected 0 matches as stub trigger should not match by default")
+    assert.equals(0, #matches, "Expected 0 matches as default matchers should not match this file")
   end)
 
-  it("should return a trigger match if stub trigger is overridden to match", function()
-    -- Temporarily override the stub trigger's match function
-    local original_trigger = libs.triggers.get("stub_file_name_trigger")
-    assert.is_not_nil(original_trigger, "Stub trigger not found for overriding")
-    local original_match_func = original_trigger.match
+  it("should return a trigger match if a matcher's trigger matches", function()
+    -- We need to mock matchers.get_simulated_matchers to return a controlled BasicMatcher instance
+    local mock_matchers_module = require("dodot.matchers")
+    local mock_basic_matcher = require("dodot.matchers.basic_matcher")
+    local mock_file_name_trigger = require("dodot.triggers.file_name")
 
-    original_trigger.match = function(self, file_path_arg, pack_path_arg)
-      -- Only match a specific file for this test
-      if pl_path.basename(file_path_arg) == "specific_match.txt" then
-        return true, { matched_by = "override" }
-      end
-      return false, nil
+    -- Create a real FileNameTrigger that will match our specific file
+    local matching_trigger_instance, terr = mock_file_name_trigger.FileNameTrigger.new({ patterns = "specific_match.txt" })
+    assert.is_not_nil(matching_trigger_instance, "Failed to create FileNameTrigger: " .. tostring(terr))
+
+    -- Create a BasicMatcher instance with this trigger
+    local matcher_instance, merr = mock_basic_matcher.BasicMatcher.new({
+        matcher_name = "test_specific_matcher",
+        trigger_type = "file_name",
+        trigger_options = { patterns = "specific_match.txt" },
+        power_up_name = "test_powerup",
+        power_up_options = { some_option = true },
+        priority = 100
+    })
+    assert.is_not_nil(matcher_instance, "Failed to create BasicMatcher: " .. tostring(merr))
+    -- Ensure the trigger inside is correctly instantiated (mocking libs.triggers.get for BasicMatcher.new)
+    local original_libs_triggers_get = libs.triggers.get
+    libs.triggers.get = function(trigger_type)
+        if trigger_type == "file_name" then return mock_file_name_trigger end
+        return original_libs_triggers_get(trigger_type) -- fallback for other types if any
     end
+    -- Re-create matcher instance with the proper mock for its internal trigger creation
+    matcher_instance, merr = mock_basic_matcher.BasicMatcher.new({
+        matcher_name = "test_specific_matcher",
+        trigger_type = "file_name",
+        trigger_options = { patterns = "specific_match.txt" },
+        power_up_name = "test_powerup",
+        power_up_options = { some_option = true },
+        priority = 100
+    })
+    assert.is_not_nil(matcher_instance, "Failed to create BasicMatcher (with mock): " .. tostring(merr))
+    assert.equals("file_name", matcher_instance.trigger.type)
+    libs.triggers.get = original_libs_triggers_get -- Restore immediately
+
+
+    -- Spy on and mock get_simulated_matchers
+    -- Ensure matchers_module is the actual table returned by require
+    assert.is_table(mock_matchers_module, "mock_matchers_module is not a table")
+    assert.is_function(mock_matchers_module.get_simulated_matchers, "get_simulated_matchers is not a function on module")
+    spy.on(mock_matchers_module, "get_simulated_matchers")
+    mock_matchers_module.get_simulated_matchers:returns({ matcher_instance }, nil)
+
 
     local pack1_path = pl_path.join(temp_dir, "pack_match_test")
     assert(pl_path.mkdir(pack1_path), "Failed to create temp pack dir")
@@ -79,29 +113,32 @@ describe("dodot.core.get_firing_triggers", function()
     assert.is_nil(err, err and err.message or "nil error expected")
     assert.is_table(matches)
     assert.equals(1, #matches, "Expected 1 match")
+
     if #matches == 1 then
-      local match = matches[1]
-      assert.equals("stub_file_name_trigger", match.trigger_name)
-      assert.equals(file_to_match, match.file_path)
-      assert.equals(pack1_path, match.pack_path)
-      assert.is_table(match.metadata)
-      assert.equals("override", match.metadata.matched_by)
-      assert.equals("stub_symlink_powerup", match.power_up_name)
-      assert.equals(10, match.priority)
-      assert.is_true(match.options.simulated_option)
+      local match_result = matches[1]
+      assert.equals(matcher_instance.trigger.type, match_result.trigger_name)
+      assert.equals(file_to_match, match_result.file_path)
+      assert.equals(pack1_path, match_result.pack_path)
+      assert.is_table(match_result.metadata)
+      assert.is_not_nil(match_result.metadata.matched_pattern)
+      assert.equals(matcher_instance.power_up_name, match_result.power_up_name)
+      assert.equals(matcher_instance.priority, match_result.priority)
+      assert.same(matcher_instance.options, match_result.options)
     end
 
-    -- Restore original match function
-    original_trigger.match = original_match_func
+    -- Restore spy
+    spy.restore(mock_matchers_module.get_simulated_matchers)
   end)
 
-  it("should handle error if a configured trigger is not in the registry", function()
-      -- This requires modifying get_simulated_matchers or how it's called,
-      -- or temporarily unregistering a trigger if libs.triggers.remove exists.
-      -- For now, this case is harder to test without more direct control over simulated_matchers
-      -- or registry manipulation in tests. The internal get_simulated_matchers already checks this.
-      -- A more direct test would involve passing a custom matcher config.
-      assert.is_true(true, "Skipping direct test for missing trigger in registry (covered by get_simulated_matchers init)")
-  end)
+  -- This test case is now obsolete as trigger fetching/validation is part of matcher creation/validation
+  -- it("should handle error if a configured trigger is not in the registry", function()
+  --     assert.is_true(true, "Test obsolete: Trigger validation handled by BasicMatcher")
+  -- end)
+
+-- end) -- This end was orphaned by commenting out the test above it.
+      -- The following lines seem to be remnants of a test and are not inside an 'it' block.
+      -- Removing them to fix syntax error.
+      -- assert.is_true(true, "Skipping direct test for missing trigger in registry (covered by get_simulated_matchers init)")
+  -- end) -- This end is also part of the remnant.
 
 end)
