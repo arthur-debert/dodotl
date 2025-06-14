@@ -3,6 +3,7 @@ package = "dodot"
 version = "0.1.1-1"
 source = {
   url = "git+https://github.com/arthur-debert/dodotl",
+  branch="jules_wip_7086130812279463177"
 }
 description = {
   summary = "A dotfile manager.",
@@ -29,12 +30,31 @@ test_dependencies = {
 }
 build = {
   type = "builtin",
-  install = {
-    lua = {
-      ["dodot"] = "lua/dodot",
-    },
-  },
+-- Generated module mappings for rockspec
+modules = {
+   ["dodot.actions"] = "lua/dodot/actions/init.lua",
+   ["dodot.cli"] = "lua/dodot/cli.lua",
+   ["dodot.commands.deploy"] = "lua/dodot/commands/deploy.lua",
+   ["dodot.commands.list"] = "lua/dodot/commands/list.lua",
+   ["dodot.core.get_actions"] = "lua/dodot/core/get_actions.lua",
+   ["dodot.core.get_firing_triggers"] = "lua/dodot/core/get_firing_triggers.lua",
+   ["dodot.core.get_fs_ops"] = "lua/dodot/core/get_fs_ops.lua",
+   ["dodot.core.get_packs"] = "lua/dodot/core/get_packs.lua",
+   ["dodot.core.list_packs"] = "lua/dodot/core/list_packs.lua",
+   ["dodot.core.run_ops"] = "lua/dodot/core/run_ops.lua",
+   ["dodot.errors.codes"] = "lua/dodot/errors/codes.lua",
+   ["dodot.errors"] = "lua/dodot/errors/init.lua",
+   ["dodot.libs"] = "lua/dodot/libs.lua",
+   ["dodot.matchers"] = "lua/dodot/matchers/init.lua",
+   ["dodot.powerups"] = "lua/dodot/powerups/init.lua",
+   ["dodot.triggers"] = "lua/dodot/triggers/init.lua",
+   ["dodot.types"] = "lua/dodot/types.lua",
+   ["dodot.utils.registry"] = "lua/dodot/utils/registry.lua",
+   ["dodot"] = "lua/dodot/init.lua",
 }
+}
+
+
 test = {
   type = "busted",
   -- Additional test configuration can go here
