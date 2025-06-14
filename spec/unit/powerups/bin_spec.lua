@@ -1,6 +1,6 @@
 -- Tests for ShellAddPathPowerup
 
-describe("ShellAddPathPowerup", function() {
+describe("ShellAddPathPowerup", function()
     local bin_module = require("dodot.powerups.bin") -- module still named bin.lua
     local pl_path = require("pl.path")
     local ShellAddPathPowerup = bin_module.ShellAddPathPowerup
@@ -50,8 +50,8 @@ describe("ShellAddPathPowerup", function() {
             assert.is_nil(err)
         end)
 
-        it("should validate with valid parameters (using options.bin_dir)", function() {
-            local matched_files = {} -- Can be empty if bin_dir is specified
+        it("should validate with valid parameters (using options.bin_dir)", function()
+            local matched_files = {}  -- Can be empty if bin_dir is specified
             local pack_path = "/pack" -- Contextual pack_path
             local options = { bin_dir = "~/.local/bin", shell = "zsh" }
             local valid, err = powerup:validate(matched_files, pack_path, options)
@@ -59,7 +59,7 @@ describe("ShellAddPathPowerup", function() {
             assert.is_nil(err)
         end)
 
-        it("should validate with empty matched_files if options.bin_dir is provided", function() {
+        it("should validate with empty matched_files if options.bin_dir is provided", function()
             local options = { bin_dir = "/usr/local/bin" }
             local valid, err = powerup:validate({}, "/pack", options)
             assert.is_true(valid)
@@ -80,7 +80,7 @@ describe("ShellAddPathPowerup", function() {
             assert.matches("options must be a table", err)
         end)
 
-        it("should reject invalid bin_dir option type", function() {
+        it("should reject invalid bin_dir option type", function()
             local options = { bin_dir = 123 }
             local valid, err = powerup:validate({}, "/pack", options)
             assert.is_false(valid)
@@ -88,7 +88,7 @@ describe("ShellAddPathPowerup", function() {
             assert.matches("options.bin_dir must be a string", err)
         end)
 
-        it("should reject invalid shell option type", function() {
+        it("should reject invalid shell option type", function()
             local options = { shell = 123 }
             local valid, err = powerup:validate({}, "/pack", options)
             assert.is_false(valid)
@@ -96,26 +96,26 @@ describe("ShellAddPathPowerup", function() {
             assert.matches("options.shell must be a string", err)
         end)
 
-        it("should reject invalid prepend option type", function() {
+        it("should reject invalid prepend option type", function()
             local options = { prepend = "true" }
             local valid, err = powerup:validate({}, "/pack", options)
             assert.is_false(valid)
             assert.is_not_nil(err)
             assert.matches("options.prepend must be a boolean", err)
         end)
-         -- Note: Validation for individual files (like path existence, type) is removed
-         -- as this powerup now focuses on directories for PATH.
+        -- Note: Validation for individual files (like path existence, type) is removed
+        -- as this powerup now focuses on directories for PATH.
     end)
 
     describe("process", function()
-        it("should return empty actions if no path_to_add can be determined", function() {
+        it("should return empty actions if no path_to_add can be determined", function()
             local actions, err = powerup:process({}, "/pack", {}) -- No matched_files and no options.bin_dir
             assert.is_nil(err)
             assert.is_table(actions)
             assert.equals(0, #actions)
         end)
 
-        it("should generate shell_add_path action using pack_path if matched_files present", function() {
+        it("should generate shell_add_path action using pack_path if matched_files present", function()
             local matched_files = { { path = "/my/dotfiles/common/bin/my_script", metadata = {} } }
             local pack_path = "/my/dotfiles/common/bin" -- This is the directory to add
             local options = { shell = "zsh" }
@@ -136,8 +136,8 @@ describe("ShellAddPathPowerup", function() {
             assert.equals("shell_add_path", action.metadata.powerup_name)
         end)
 
-        it("should generate shell_add_path action using options.bin_dir if provided", function() {
-            local matched_files = {} -- Not used if bin_dir is present
+        it("should generate shell_add_path action using options.bin_dir if provided", function()
+            local matched_files = {}                -- Not used if bin_dir is present
             local pack_path = "/my/dotfiles/common" -- Contextual
             local options = { bin_dir = "~/.custom_bin", prepend = true }
 
@@ -155,7 +155,7 @@ describe("ShellAddPathPowerup", function() {
             assert.is_true(action.data.prepend)
         end)
 
-        it("should prioritize options.bin_dir over pack_path from matched_files", function() {
+        it("should prioritize options.bin_dir over pack_path from matched_files", function()
             local matched_files = { { path = "/pack/some_pack_bin/tool", metadata = {} } }
             local pack_path = "/pack/some_pack_bin"
             local options = { bin_dir = "/override/bin", shell = "fish" }
@@ -169,7 +169,7 @@ describe("ShellAddPathPowerup", function() {
             assert.equals("fish", action.data.shell)
         end)
 
-        it("should expand tilde in options.bin_dir", function() {
+        it("should expand tilde in options.bin_dir", function()
             local options = { bin_dir = "~/mybin" }
             local actions, err = powerup:process({}, "/pack", options)
             assert.is_nil(err)
@@ -178,7 +178,7 @@ describe("ShellAddPathPowerup", function() {
             assert.equals("/home/user/mybin", actions[1].data.path_to_add)
         end)
 
-        it("should default prepend to false", function() {
+        it("should default prepend to false", function()
             local options = { bin_dir = "/usr/local/sbin" }
             local actions, err = powerup:process({}, "/pack", options)
             assert.is_nil(err)
@@ -187,10 +187,11 @@ describe("ShellAddPathPowerup", function() {
             assert.is_false(actions[1].data.prepend)
         end)
 
-        it("should detect shell if not specified in options", function() {
+        it("should detect shell if not specified in options", function()
             -- Mock os.getenv("SHELL") to return /bin/zsh for this test
             local old_getenv = os.getenv
-            os.getenv = function(var) if var == "SHELL" then return "/bin/zsh" elseif var == "HOME" then return "/home/user" else return old_getenv(var) end end
+            os.getenv = function(var) if var == "SHELL" then return "/bin/zsh" elseif var == "HOME" then return
+                    "/home/user" else return old_getenv(var) end end
 
             local options = { bin_dir = "/opt/bin" }
             local actions, err = powerup:process({}, "/pack", options)
@@ -202,7 +203,7 @@ describe("ShellAddPathPowerup", function() {
             os.getenv = old_getenv -- Restore
         end)
 
-        it("should handle nil options table gracefully", function() {
+        it("should handle nil options table gracefully", function()
             -- This will use pack_path derived from matched_files
             local matched_files = { { path = "/pack/bin/tool", metadata = {} } }
             local pack_path = "/pack/bin"
@@ -213,7 +214,7 @@ describe("ShellAddPathPowerup", function() {
             assert.is_table(action.data)
             assert.equals("/pack/bin", action.data.path_to_add)
             assert.equals("bash", action.data.shell) -- default
-            assert.is_false(action.data.prepend)   -- default
+            assert.is_false(action.data.prepend)     -- default
         end)
     end)
 end)

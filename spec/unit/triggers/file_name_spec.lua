@@ -6,16 +6,16 @@ describe("FileNameTrigger", function()
     local pl_path = require("pl.path") -- For path manipulation in tests
 
     describe("new", function()
-        it("should create a trigger with a single valid pattern string", function() {
+        it("should create a trigger with a single valid pattern string", function()
             local trigger = FileNameTrigger.new("*.txt", {})
             assert.is_not_nil(trigger)
             assert.same({ "*.txt" }, trigger.patterns)
             assert.equals("file_name", trigger.type)
             assert.is_true(trigger.options.case_sensitive) -- Default
-            assert.is_false(trigger.options.recursive)    -- Default
+            assert.is_false(trigger.options.recursive)     -- Default
         end)
 
-        it("should create a trigger with a table of patterns", function() {
+        it("should create a trigger with a table of patterns", function()
             local patterns = { "*.txt", "TEST*.md" }
             local trigger = FileNameTrigger.new(patterns, { case_sensitive = false })
             assert.is_not_nil(trigger)
@@ -23,35 +23,35 @@ describe("FileNameTrigger", function()
             assert.is_false(trigger.options.case_sensitive)
         end)
 
-        it("should reject empty patterns string", function() {
+        it("should reject empty patterns string", function()
             local trigger, err = FileNameTrigger.new("", {})
             assert.is_nil(trigger)
             assert.is_not_nil(err)
             assert.matches("non%-empty pattern", err)
         end)
 
-        it("should reject empty patterns table", function() {
+        it("should reject empty patterns table", function()
             local trigger, err = FileNameTrigger.new({}, {})
             assert.is_nil(trigger)
             assert.is_not_nil(err)
             assert.matches("non%-empty pattern or table of patterns", err) -- Adjusted error message
         end)
 
-        it("should reject table with empty string pattern", function() {
-            local trigger, err = FileNameTrigger.new({"test.txt", ""}, {})
+        it("should reject table with empty string pattern", function()
+            local trigger, err = FileNameTrigger.new({ "test.txt", "" }, {})
             assert.is_nil(trigger)
             assert.is_not_nil(err)
             assert.matches("Pattern at index 2 must be a non%-empty string", err)
         end)
 
-        it("should reject nil patterns", function() {
+        it("should reject nil patterns", function()
             local trigger, err = FileNameTrigger.new(nil, {})
             assert.is_nil(trigger)
             assert.is_not_nil(err)
             assert.matches("non%-empty pattern or table of patterns", err)
         end)
 
-        it("should correctly store options", function() {
+        it("should correctly store options", function()
             local options = {
                 case_sensitive = false,
                 recursive = true,
@@ -64,7 +64,7 @@ describe("FileNameTrigger", function()
             assert.same(options.exclude_patterns, trigger.options.exclude_patterns)
         end)
 
-        it("should default options if not provided", function() {
+        it("should default options if not provided", function()
             local trigger = FileNameTrigger.new("*.log", nil) -- options is nil
             assert.is_not_nil(trigger)
             assert.is_true(trigger.options.case_sensitive)
@@ -73,29 +73,29 @@ describe("FileNameTrigger", function()
         end)
     end)
 
-    describe("validate", function() {
-        it("should validate trigger with valid patterns and options", function() {
-            local trigger = FileNameTrigger.new({"*.txt"}, { recursive = true, case_sensitive = false })
+    describe("validate", function()
+        it("should validate trigger with valid patterns and options", function()
+            local trigger = FileNameTrigger.new({ "*.txt" }, { recursive = true, case_sensitive = false })
             local valid, err = trigger:validate()
             assert.is_true(valid, "Validation failed: " .. tostring(err))
             assert.is_nil(err)
         end)
 
-        it("should validate with exclude_patterns", function() {
-            local trigger = FileNameTrigger.new("*.log", { exclude_patterns = {"debug.log"} })
+        it("should validate with exclude_patterns", function()
+            local trigger = FileNameTrigger.new("*.log", { exclude_patterns = { "debug.log" } })
             local valid, err = trigger:validate()
             assert.is_true(valid, "Validation failed: " .. tostring(err))
             assert.is_nil(err)
         end)
 
-        it("should reject invalid patterns table (e.g. number in table)", function() {
-            local trigger, err_new = FileNameTrigger.new({"*.txt", 123}, {})
+        it("should reject invalid patterns table (e.g. number in table)", function()
+            local trigger, err_new = FileNameTrigger.new({ "*.txt", 123 }, {})
             assert.is_nil(trigger) -- new should fail
             assert.is_not_nil(err_new)
             assert.matches("Pattern at index 2 must be a non%-empty string", err_new)
         end)
 
-        it("should reject invalid options.case_sensitive type", function() {
+        it("should reject invalid options.case_sensitive type", function()
             local trigger = FileNameTrigger.new("*.txt", { case_sensitive = "true" })
             local valid, err = trigger:validate()
             assert.is_false(valid)
@@ -103,7 +103,7 @@ describe("FileNameTrigger", function()
             assert.matches("case_sensitive option must be a boolean", err)
         end)
 
-        it("should reject invalid options.recursive type", function() {
+        it("should reject invalid options.recursive type", function()
             local trigger = FileNameTrigger.new("*.txt", { recursive = "false" })
             local valid, err = trigger:validate()
             assert.is_false(valid)
@@ -111,7 +111,7 @@ describe("FileNameTrigger", function()
             assert.matches("recursive option must be a boolean", err)
         end)
 
-        it("should reject invalid options.exclude_patterns type", function() {
+        it("should reject invalid options.exclude_patterns type", function()
             local trigger = FileNameTrigger.new("*.txt", { exclude_patterns = "string.tmp" })
             -- This error is caught by FileNameTrigger.new now
             local trig_instance, err_new = FileNameTrigger.new("*.txt", { exclude_patterns = "string.tmp" })
@@ -120,18 +120,18 @@ describe("FileNameTrigger", function()
             assert.matches("exclude_patterns must be a table of strings", err_new:lower())
         end)
 
-        it("should reject invalid pattern in options.exclude_patterns", function() {
-             local trig_instance, err_new = FileNameTrigger.new("*.txt", { exclude_patterns = {""} })
+        it("should reject invalid pattern in options.exclude_patterns", function()
+            local trig_instance, err_new = FileNameTrigger.new("*.txt", { exclude_patterns = { "" } })
             assert.is_nil(trig_instance)
             assert.is_not_nil(err_new)
             assert.matches("exclude pattern at index 1 must be a non%-empty string", err_new:lower())
         end)
     end)
 
-    describe("match", function() {
+    describe("match", function()
         local pack_path = "/dotfiles/pack1"
 
-        it("should handle nil file_path or pack_path", function() {
+        it("should handle nil file_path or pack_path", function()
             local trigger = FileNameTrigger.new("*.txt", {})
             local matches_nil_file, _ = trigger:match(nil, pack_path)
             assert.is_false(matches_nil_file)
@@ -139,15 +139,15 @@ describe("FileNameTrigger", function()
             assert.is_false(matches_nil_pack)
         end)
 
-        it("should not match files outside pack_path", function() {
+        it("should not match files outside pack_path", function()
             local trigger = FileNameTrigger.new("*.txt", { recursive = true })
             local matches, _ = trigger:match("/dotfiles/other_pack/file.txt", pack_path)
             assert.is_false(matches)
         end)
 
         -- Non-Recursive Tests (recursive = false, default)
-        describe("non-recursive matching", function() {
-            it("should match basename for simple pattern if file is in pack root", function() {
+        describe("non-recursive matching", function()
+            it("should match basename for simple pattern if file is in pack root", function()
                 local trigger = FileNameTrigger.new("file.txt", { recursive = false })
                 local matches, meta = trigger:match(pl_path.join(pack_path, "file.txt"), pack_path)
                 assert.is_true(matches)
@@ -155,25 +155,25 @@ describe("FileNameTrigger", function()
                 assert.equals("file.txt", meta.relative_path)
             end)
 
-            it("should not match if file is in subdirectory", function() {
+            it("should not match if file is in subdirectory", function()
                 local trigger = FileNameTrigger.new("file.txt", { recursive = false })
                 local matches, _ = trigger:match(pl_path.join(pack_path, "sub", "file.txt"), pack_path)
                 assert.is_false(matches)
             end)
 
-            it("should match basename with wildcard if file is in pack root", function() {
+            it("should match basename with wildcard if file is in pack root", function()
                 local trigger = FileNameTrigger.new("*.txt", { recursive = false })
                 local matches, _ = trigger:match(pl_path.join(pack_path, "another.txt"), pack_path)
                 assert.is_true(matches)
             end)
 
-            it("should not match wildcard pattern if file is in subdirectory", function() {
+            it("should not match wildcard pattern if file is in subdirectory", function()
                 local trigger = FileNameTrigger.new("*.txt", { recursive = false })
                 local matches, _ = trigger:match(pl_path.join(pack_path, "sub", "deep.txt"), pack_path)
                 assert.is_false(matches)
             end)
 
-            it("should match against basename for non-recursive, case sensitive by default", function() {
+            it("should match against basename for non-recursive, case sensitive by default", function()
                 local trigger = FileNameTrigger.new("File.txt", {})
                 local m1, _ = trigger:match(pl_path.join(pack_path, "File.txt"), pack_path)
                 assert.is_true(m1)
@@ -183,33 +183,33 @@ describe("FileNameTrigger", function()
         end)
 
         -- Recursive Tests (recursive = true)
-        describe("recursive matching", function() {
-            it("should match file in pack root using relative path", function() {
+        describe("recursive matching", function()
+            it("should match file in pack root using relative path", function()
                 local trigger = FileNameTrigger.new("file.txt", { recursive = true })
                 local matches, meta = trigger:match(pl_path.join(pack_path, "file.txt"), pack_path)
                 assert.is_true(matches)
                 assert.equals("file.txt", meta.relative_path)
             end)
 
-            it("should match file in subdirectory using relative path", function() {
+            it("should match file in subdirectory using relative path", function()
                 local trigger = FileNameTrigger.new("sub/file.txt", { recursive = true })
                 local matches, meta = trigger:match(pl_path.join(pack_path, "sub", "file.txt"), pack_path)
                 assert.is_true(matches)
                 assert.equals("sub/file.txt", meta.relative_path)
             end)
 
-            it("should match file in subdirectory with wildcard in path", function() {
+            it("should match file in subdirectory with wildcard in path", function()
                 local trigger = FileNameTrigger.new("sub/*.txt", { recursive = true })
                 local matches, _ = trigger:match(pl_path.join(pack_path, "sub", "another.txt"), pack_path)
                 assert.is_true(matches)
             end)
 
-            it("should match files deep in hierarchy with appropriate pattern", function() {
+            it("should match files deep in hierarchy with appropriate pattern", function()
                 local trigger = FileNameTrigger.new("a/b/c/file.dat", { recursive = true })
                 local matches, _ = trigger:match(pl_path.join(pack_path, "a/b/c/file.dat"), pack_path)
                 assert.is_true(matches)
             end)
-             it("should match wildcard at any depth if pattern implies it (e.g. *.txt)", function() {
+            it("should match wildcard at any depth if pattern implies it (e.g. *.txt)", function()
                 local trigger = FileNameTrigger.new("*.txt", { recursive = true })
                 local m1, _ = trigger:match(pl_path.join(pack_path, "a/b/c/deep.txt"), pack_path)
                 assert.is_true(m1)
@@ -219,8 +219,8 @@ describe("FileNameTrigger", function()
         end)
 
         -- Case Sensitivity Tests
-        describe("case sensitivity", function() {
-            it("should be case sensitive by default (recursive false)", function() {
+        describe("case sensitivity", function()
+            it("should be case sensitive by default (recursive false)", function()
                 local trigger = FileNameTrigger.new("File.Txt", { recursive = false })
                 local matches_exact, _ = trigger:match(pl_path.join(pack_path, "File.Txt"), pack_path)
                 assert.is_true(matches_exact)
@@ -228,17 +228,17 @@ describe("FileNameTrigger", function()
                 assert.is_false(matches_lower)
             end)
 
-            it("should be case sensitive by default (recursive true)", function() {
+            it("should be case sensitive by default (recursive true)", function()
                 local trigger = FileNameTrigger.new("Sub/File.Txt", { recursive = true })
                 local matches_exact, _ = trigger:match(pl_path.join(pack_path, "Sub/File.Txt"), pack_path)
                 assert.is_true(matches_exact)
                 local matches_lower, _ = trigger:match(pl_path.join(pack_path, "sub/file.txt"), pack_path)
-                assert.is_false(matches_lower) -- Path segment "Sub" vs "sub"
-                 local matches_lower_file, _ = trigger:match(pl_path.join(pack_path, "Sub/file.txt"), pack_path)
+                assert.is_false(matches_lower)      -- Path segment "Sub" vs "sub"
+                local matches_lower_file, _ = trigger:match(pl_path.join(pack_path, "Sub/file.txt"), pack_path)
                 assert.is_false(matches_lower_file) -- Filename "File.Txt" vs "file.txt"
             end)
 
-            it("should be case insensitive if option is false (recursive false)", function() {
+            it("should be case insensitive if option is false (recursive false)", function()
                 local trigger = FileNameTrigger.new("File.Txt", { recursive = false, case_sensitive = false })
                 local matches_exact, _ = trigger:match(pl_path.join(pack_path, "File.Txt"), pack_path)
                 assert.is_true(matches_exact)
@@ -248,20 +248,20 @@ describe("FileNameTrigger", function()
                 assert.is_true(matches_upper)
             end)
 
-            it("should be case insensitive if option is false (recursive true)", function() {
+            it("should be case insensitive if option is false (recursive true)", function()
                 local trigger = FileNameTrigger.new("Sub/File.Txt", { recursive = true, case_sensitive = false })
                 local matches_exact, _ = trigger:match(pl_path.join(pack_path, "Sub/File.Txt"), pack_path)
                 assert.is_true(matches_exact)
                 local matches_lower_path, _ = trigger:match(pl_path.join(pack_path, "sub/file.txt"), pack_path)
                 assert.is_true(matches_lower_path)
-                 local matches_upper_file, _ = trigger:match(pl_path.join(pack_path, "SUB/FILE.TXT"), pack_path)
+                local matches_upper_file, _ = trigger:match(pl_path.join(pack_path, "SUB/FILE.TXT"), pack_path)
                 assert.is_true(matches_upper_file)
             end)
         end)
 
         -- Exclude Patterns Tests
-        describe("exclude patterns", function() {
-            it("should not match if an exclude pattern matches (recursive false)", function() {
+        describe("exclude patterns", function()
+            it("should not match if an exclude pattern matches (recursive false)", function()
                 local trigger = FileNameTrigger.new("*.txt", { recursive = false, exclude_patterns = { "temp.txt" } })
                 local matches_normal, _ = trigger:match(pl_path.join(pack_path, "permanent.txt"), pack_path)
                 assert.is_true(matches_normal)
@@ -269,8 +269,9 @@ describe("FileNameTrigger", function()
                 assert.is_false(matches_excluded)
             end)
 
-            it("should not match if an exclude pattern matches (recursive true)", function() {
-                local trigger = FileNameTrigger.new("*.log", { recursive = true, exclude_patterns = { "sub/debug.log", "*.tmp" } })
+            it("should not match if an exclude pattern matches (recursive true)", function()
+                local trigger = FileNameTrigger.new("*.log",
+                    { recursive = true, exclude_patterns = { "sub/debug.log", "*.tmp" } })
                 local m_app, _ = trigger:match(pl_path.join(pack_path, "app.log"), pack_path)
                 assert.is_true(m_app)
                 local m_sub_app, _ = trigger:match(pl_path.join(pack_path, "sub/app.log"), pack_path)
@@ -284,22 +285,24 @@ describe("FileNameTrigger", function()
                 assert.is_false(m_excluded_sub_tmp)
             end)
 
-            it("exclude patterns should respect case sensitivity (case sensitive)", function() {
-                local trigger = FileNameTrigger.new("*.txt", { exclude_patterns = { "IGNORE.txt" }, case_sensitive = true })
+            it("exclude patterns should respect case sensitivity (case sensitive)", function()
+                local trigger = FileNameTrigger.new("*.txt",
+                    { exclude_patterns = { "IGNORE.txt" }, case_sensitive = true })
                 local m_match, _ = trigger:match(pl_path.join(pack_path, "ignore.txt"), pack_path)
                 assert.is_true(m_match) -- "ignore.txt" does not match "IGNORE.txt"
                 local m_no_match, _ = trigger:match(pl_path.join(pack_path, "IGNORE.txt"), pack_path)
                 assert.is_false(m_no_match)
             end)
 
-            it("exclude patterns should respect case sensitivity (case insensitive)", function() {
-                local trigger = FileNameTrigger.new("*.txt", { exclude_patterns = { "IGNORE.txt" }, case_sensitive = false })
+            it("exclude patterns should respect case sensitivity (case insensitive)", function()
+                local trigger = FileNameTrigger.new("*.txt",
+                    { exclude_patterns = { "IGNORE.txt" }, case_sensitive = false })
                 local m_no_match1, _ = trigger:match(pl_path.join(pack_path, "ignore.txt"), pack_path)
                 assert.is_false(m_no_match1) -- "ignore.txt" matches "ignore.txt" (pattern lowercased)
                 local m_no_match2, _ = trigger:match(pl_path.join(pack_path, "IGNORE.txt"), pack_path)
                 assert.is_false(m_no_match2)
             end)
-             it("should match if main pattern matches and no exclude patterns match", function() {
+            it("should match if main pattern matches and no exclude patterns match", function()
                 local trigger = FileNameTrigger.new("*.cfg", { exclude_patterns = { "*.bak" } })
                 local matches, _ = trigger:match(pl_path.join(pack_path, "user.cfg"), pack_path)
                 assert.is_true(matches)
@@ -307,8 +310,8 @@ describe("FileNameTrigger", function()
         end)
 
         -- Multiple patterns
-        describe("multiple patterns", function() {
-            it("should match if any of the patterns match", function() {
+        describe("multiple patterns", function()
+            it("should match if any of the patterns match", function()
                 local trigger = FileNameTrigger.new({ "*.txt", "file.md" }, { recursive = true })
                 local m_txt, _ = trigger:match(pl_path.join(pack_path, "sub/doc.txt"), pack_path)
                 assert.is_true(m_txt)
@@ -318,7 +321,7 @@ describe("FileNameTrigger", function()
                 assert.is_false(m_log)
             end)
 
-            it("should provide correct matched_pattern metadata with multiple patterns", function() {
+            it("should provide correct matched_pattern metadata with multiple patterns", function()
                 local trigger = FileNameTrigger.new({ "specific.cfg", "*.cfg" }, { recursive = false })
                 local _, meta1 = trigger:match(pl_path.join(pack_path, "specific.cfg"), pack_path)
                 assert.equals("specific.cfg", meta1.matched_pattern)
