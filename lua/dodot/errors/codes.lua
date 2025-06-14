@@ -48,7 +48,8 @@ local M = {
         "DUPLICATE_ERROR_CODE",
         "UNKNOWN_ERROR_CODE",
         "INVALID_ERROR_DATA",
-        "MISSING_HOME_DIR" -- Added new error code
+        "MISSING_HOME_DIR", -- Added new error code
+        "UNSUPPORTED_SHELL" -- Added for shell_add_path action
     },
 
     messages = {
@@ -97,7 +98,9 @@ local M = {
         DUPLICATE_ERROR_CODE = "Error code '%s' already exists",
         UNKNOWN_ERROR_CODE = "Unknown error code: %s",
         INVALID_ERROR_DATA = "Invalid error data for code %s: %s",
-        MISSING_HOME_DIR = "User home directory could not be determined. Failed to find HOME or USERPROFILE environment variables"
+        MISSING_HOME_DIR =
+        "User home directory could not be determined. Failed to find HOME or USERPROFILE environment variables",
+        UNSUPPORTED_SHELL = "Unsupported shell type: %s"
     }
 }
 

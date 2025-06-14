@@ -120,12 +120,110 @@ local action_to_op_builder = {
             }
         }, nil -- No error
     end,
+
+    link = function(action)
+        -- Build operations for link action (symlinks)
+        if not action.data or not action.data.source_path or not action.data.target_path then
+            return nil, errors.create("INVALID_ACTION_DATA", { "link", "Missing source_path or target_path in data" })
+        end
+
+        local ops = {}
+
+        -- Create parent directories if requested
+        if action.data.create_dirs then
+            local target_dir = pl_path.dirname(action.data.target_path)
+            table.insert(ops, {
+                type = "fsynth.op.ensure_dir",
+                description = "Ensure parent directory exists: " .. target_dir,
+                args = { path = target_dir, mode = "0755" }
+            })
+        end
+
+        -- Create the symlink
+        table.insert(ops, {
+            type = "fsynth.op.symlink",
+            description = action.description or ("Link " .. action.data.source_path .. " to " .. action.data.target_path),
+            args = {
+                src = action.data.source_path,
+                dest = action.data.target_path,
+                force = action.data.overwrite or false,
+                backup = action.data.backup or false
+            }
+        })
+
+        return ops, nil
+    end,
+
+    shell_add_path = function(action)
+        -- Build operations for shell_add_path action
+        if not action.data or not action.data.path_to_add or not action.data.shell then
+            return nil,
+                errors.create("INVALID_ACTION_DATA", { "shell_add_path", "Missing path_to_add or shell in data" })
+        end
+
+        local home_dir = get_home_directory()
+        if not home_dir then
+            return nil, errors.create("MISSING_HOME_DIR", { "shell_add_path", "User home directory not found" })
+        end
+
+        -- Determine shell profile file
+        local shell_profiles = {
+            bash = ".bashrc",
+            zsh = ".zshrc",
+            fish = ".config/fish/config.fish",
+        }
+
+        local profile_file = shell_profiles[action.data.shell]
+        if not profile_file then
+            return nil,
+                errors.create("UNSUPPORTED_SHELL", { "shell_add_path", "Unsupported shell: " .. action.data.shell })
+        end
+
+        local profile_path = pl_path.join(home_dir, profile_file)
+
+        -- Create export command
+        local path_cmd
+        if action.data.prepend then
+            path_cmd = "export PATH=\"" .. action.data.path_to_add .. ":$PATH\""
+        else
+            path_cmd = "export PATH=\"$PATH:" .. action.data.path_to_add .. "\""
+        end
+
+        -- Add comment for identification
+        local path_addition = "\n# Added by dodot for PATH management\n" .. path_cmd .. "\n"
+
+        local ops = {}
+
+        -- Ensure parent directory exists (for fish config)
+        if action.data.shell == "fish" then
+            local config_dir = pl_path.dirname(profile_path)
+            table.insert(ops, {
+                type = "fsynth.op.ensure_dir",
+                description = "Ensure fish config directory exists: " .. config_dir,
+                args = { path = config_dir, mode = "0755" }
+            })
+        end
+
+        -- Append PATH modification to profile
+        table.insert(ops, {
+            type = "fsynth.op.append_to_file",
+            description = action.description or ("Add " .. action.data.path_to_add .. " to PATH in " .. profile_path),
+            args = {
+                path = profile_path,
+                content = path_addition,
+                create_if_missing = true,
+                unique = true -- Don't add duplicate entries
+            }
+        })
+
+        return ops, nil
+    end,
+
     shell_source = build_shell_source_ops, -- Added shell_source builder
-    -- In the future, other action types like "copy_file", "ensure_dir" would have entries here.
-    -- e.g.,
-    -- copy_file = function(action)
-    --     return {{ type = "fsynth.op.copy_file", args = action.data }}, nil
-    -- end,
+
+    -- Future action types would be added here
+    -- brew_install = function(action) ... end,
+    -- script_run = function(action) ... end,
 }
 
 function M.get_fs_ops(actions_list)
