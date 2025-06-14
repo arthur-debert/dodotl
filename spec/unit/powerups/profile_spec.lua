@@ -40,9 +40,9 @@ describe("ProfilePowerup", function()
     end)
 
     describe("new", function()
-        it("should create a profile powerup instance", function()
+        it("should create a shell_profile powerup instance", function()
             assert.is_not_nil(powerup)
-            assert.equals("profile", powerup.name)
+            assert.equals("shell_profile", powerup.name)
             assert.equals("profile_powerup", powerup.type)
         end)
     end)
@@ -54,7 +54,7 @@ describe("ProfilePowerup", function()
                 { path = "/pack/exports.sh", metadata = {} }
             }
             local pack_path = "/pack"
-            local options = { shell = "bash", action_type = "source" }
+            local options = { shell = "bash", action_type = "source", order = 10 }
 
             local valid, err = powerup:validate(matched_files, pack_path, options)
             assert.is_true(valid)
@@ -159,6 +159,21 @@ describe("ProfilePowerup", function()
             assert.matches("export_prefix must be a string", err)
         end)
 
+        it("should accept valid order option", function()
+            local options = { order = 100 }
+            local valid, err = powerup:validate({}, "/pack", options)
+            assert.is_true(valid)
+            assert.is_nil(err)
+        end)
+
+        it("should reject invalid order option type", function()
+            local options = { order = "100" }
+            local valid, err = powerup:validate({}, "/pack", options)
+            assert.is_false(valid)
+            assert.is_not_nil(err)
+            assert.matches("order must be a number", err)
+        end)
+
         it("should reject file without path", function()
             local matched_files = { { metadata = {} } }
             local valid, err = powerup:validate(matched_files, "/pack", {})
@@ -206,12 +221,15 @@ describe("ProfilePowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.equals("profile_source", action.type)
-            assert.equals("/pack/aliases.sh", action.source_file)
-            assert.equals("/home/user/.bashrc", action.profile_file)
-            assert.equals("bash", action.shell)
-            assert.equals("profile", action.metadata.powerup)
-            assert.equals("source", action.metadata.action_type)
+            assert.equals("shell_source", action.type)
+            assert.is_string(action.description)
+            assert.is_table(action.data)
+            assert.equals("source", action.data.method)
+            assert.equals("/pack/aliases.sh", action.data.source_file)
+            assert.equals("/home/user/.bashrc", action.data.profile_file)
+            assert.equals("bash", action.data.shell)
+            assert.equals(50, action.data.order) -- Default order
+            assert.equals("shell_profile", action.metadata.powerup_name)
             assert.equals("aliases.sh", action.metadata.relative_source)
         end)
 
@@ -228,11 +246,15 @@ describe("ProfilePowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.equals("profile_append", action.type)
-            assert.equals("/pack/exports.sh", action.source_file)
-            assert.equals("/home/user/.zshrc", action.profile_file)
-            assert.equals("zsh", action.shell)
-            assert.equals("append", action.metadata.action_type)
+            assert.equals("shell_source", action.type)
+            assert.is_string(action.description)
+            assert.is_table(action.data)
+            assert.equals("append", action.data.method)
+            assert.equals("/pack/exports.sh", action.data.source_file)
+            assert.equals("/home/user/.zshrc", action.data.profile_file)
+            assert.equals("zsh", action.data.shell)
+            assert.equals(50, action.data.order) -- Default order
+            assert.equals("shell_profile", action.metadata.powerup_name)
         end)
 
         it("should generate export_vars actions", function()
@@ -252,12 +274,16 @@ describe("ProfilePowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.equals("profile_export_vars", action.type)
-            assert.equals("/pack/env.txt", action.source_file)
-            assert.equals("/home/user/.bashrc", action.profile_file)
-            assert.equals("bash", action.shell)
-            assert.equals("MYAPP_", action.export_prefix)
-            assert.equals("export_vars", action.metadata.action_type)
+            assert.equals("shell_source", action.type)
+            assert.is_string(action.description)
+            assert.is_table(action.data)
+            assert.equals("export_vars", action.data.method)
+            assert.equals("/pack/env.txt", action.data.source_file)
+            assert.equals("/home/user/.bashrc", action.data.profile_file)
+            assert.equals("bash", action.data.shell)
+            assert.equals("MYAPP_", action.data.export_prefix)
+            assert.equals(50, action.data.order) -- Default order
+            assert.equals("shell_profile", action.metadata.powerup_name)
         end)
 
         it("should detect shell automatically", function()
@@ -272,8 +298,9 @@ describe("ProfilePowerup", function()
             assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.equals("bash", action.shell) -- Should detect bash from mocked SHELL
-            assert.equals("/home/user/.bashrc", action.profile_file)
+            assert.is_table(action.data)
+            assert.equals("bash", action.data.shell) -- Should detect bash from mocked SHELL
+            assert.equals("/home/user/.bashrc", action.data.profile_file)
         end)
 
         it("should handle different shells", function()
@@ -288,11 +315,12 @@ describe("ProfilePowerup", function()
                 assert.equals(1, #actions)
 
                 local action = actions[1]
-                assert.equals(shell, action.shell)
+                assert.is_table(action.data)
+                assert.equals(shell, action.data.shell)
 
                 -- Check profile file matches expected pattern
                 local expected_profile = SHELL_PROFILES[shell][1]
-                assert.matches(expected_profile:gsub("%.", "%%."), action.profile_file)
+                assert.matches(expected_profile:gsub("%.", "%%."), action.data.profile_file)
             end
         end)
 
@@ -310,10 +338,14 @@ describe("ProfilePowerup", function()
             assert.equals(2, #actions)
 
             -- Check that both files generated actions
-            assert.equals("/pack/aliases.sh", actions[1].source_file)
-            assert.equals("/pack/functions.sh", actions[2].source_file)
+            assert.is_table(actions[1].data)
+            assert.is_table(actions[2].data)
+            assert.equals("/pack/aliases.sh", actions[1].data.source_file)
+            assert.equals("/pack/functions.sh", actions[2].data.source_file)
 
             -- Check that original metadata is preserved
+            assert.is_table(actions[1].metadata)
+            assert.is_table(actions[2].metadata)
             assert.equals("aliases", actions[1].metadata.original_metadata.type)
             assert.equals("functions", actions[2].metadata.original_metadata.type)
         end)
@@ -345,7 +377,27 @@ describe("ProfilePowerup", function()
             local actions, err = powerup:process(matched_files, "/pack", options)
             assert.is_nil(err)
             assert.equals(1, #actions)
-            assert.equals("", actions[1].export_prefix)
+            assert.is_table(actions[1].data)
+            assert.equals("", actions[1].data.export_prefix)
+        end)
+
+        it("should respect order option", function()
+            local matched_files = { { path = "/pack/ordered.sh", metadata = {} } }
+            local options = { order = 10 }
+            local actions, err = powerup:process(matched_files, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_table(actions[1].data)
+            assert.equals(10, actions[1].data.order)
+        end)
+
+        it("should default order to 50 if not specified", function()
+            local matched_files = { { path = "/pack/default_order.sh", metadata = {} } }
+            local actions, err = powerup:process(matched_files, "/pack", {})
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_table(actions[1].data)
+            assert.equals(50, actions[1].data.order)
         end)
     end)
 end)

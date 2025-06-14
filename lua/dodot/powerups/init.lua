@@ -30,10 +30,10 @@ function M.register_powerups(registry)
     registry.add("symlink", symlink.SymlinkPowerup)
 
     -- Phase 3.4: Profile power-up
-    registry.add("profile", profile.ProfilePowerup)
+    registry.add("shell_profile", profile.ProfilePowerup) -- Changed name
 
     -- Phase 3.5: Bin power-up
-    registry.add("bin", bin.BinPowerup)
+    registry.add("shell_add_path", bin.ShellAddPathPowerup) -- Changed name and module field
 
     -- Keep stub for backward compatibility
     registry.add("stub_symlink_powerup", StubSymlinkPowerUp)

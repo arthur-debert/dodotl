@@ -1,15 +1,15 @@
--- Tests for BinPowerup
+-- Tests for ShellAddPathPowerup
 
-describe("BinPowerup", function()
-    local bin = require("dodot.powerups.bin")
+describe("ShellAddPathPowerup", function() {
+    local bin_module = require("dodot.powerups.bin") -- module still named bin.lua
     local pl_path = require("pl.path")
-    local BinPowerup = bin.BinPowerup
+    local ShellAddPathPowerup = bin_module.ShellAddPathPowerup
 
     local powerup
     local original_home
 
     before_each(function()
-        powerup = BinPowerup.new()
+        powerup = ShellAddPathPowerup.new()
         original_home = os.getenv("HOME")
         -- Set predictable environment for tests
         os.getenv = function(var)
@@ -33,35 +33,35 @@ describe("BinPowerup", function()
     end)
 
     describe("new", function()
-        it("should create a bin powerup instance", function()
+        it("should create a shell_add_path powerup instance", function()
             assert.is_not_nil(powerup)
-            assert.equals("bin", powerup.name)
-            assert.equals("bin_powerup", powerup.type)
+            assert.equals("shell_add_path", powerup.name)
+            assert.equals("shell_add_path_powerup", powerup.type)
         end)
     end)
 
     describe("validate", function()
-        it("should validate with valid parameters", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} },
-                { path = "/pack/tool",      metadata = {} }
-            }
-            local pack_path = "/pack"
-            local options = { bin_dir = "~/.local/bin" }
-
+        it("should validate with valid parameters (using pack_path)", function()
+            local matched_files = { { path = "/pack/bin/tool", metadata = {} } } -- Simulating DirectoryTrigger result
+            local pack_path = "/pack/bin"
+            local options = { shell = "bash", prepend = true }
             local valid, err = powerup:validate(matched_files, pack_path, options)
             assert.is_true(valid)
             assert.is_nil(err)
         end)
 
-        it("should validate with empty matched_files", function()
-            local valid, err = powerup:validate({}, "/pack", {})
+        it("should validate with valid parameters (using options.bin_dir)", function() {
+            local matched_files = {} -- Can be empty if bin_dir is specified
+            local pack_path = "/pack" -- Contextual pack_path
+            local options = { bin_dir = "~/.local/bin", shell = "zsh" }
+            local valid, err = powerup:validate(matched_files, pack_path, options)
             assert.is_true(valid)
             assert.is_nil(err)
         end)
 
-        it("should validate with nil matched_files", function()
-            local valid, err = powerup:validate(nil, "/pack", {})
+        it("should validate with empty matched_files if options.bin_dir is provided", function() {
+            local options = { bin_dir = "/usr/local/bin" }
+            local valid, err = powerup:validate({}, "/pack", options)
             assert.is_true(valid)
             assert.is_nil(err)
         end)
@@ -70,21 +70,7 @@ describe("BinPowerup", function()
             local valid, err = powerup:validate({}, "", {})
             assert.is_false(valid)
             assert.is_not_nil(err)
-            assert.matches("valid pack_path", err)
-        end)
-
-        it("should reject nil pack_path", function()
-            local valid, err = powerup:validate({}, nil, {})
-            assert.is_false(valid)
-            assert.is_not_nil(err)
-            assert.matches("valid pack_path", err)
-        end)
-
-        it("should reject non-table matched_files", function()
-            local valid, err = powerup:validate("invalid", "/pack", {})
-            assert.is_false(valid)
-            assert.is_not_nil(err)
-            assert.matches("must be a table", err)
+            assert.matches("requires a valid pack_path", err)
         end)
 
         it("should reject non-table options", function()
@@ -94,287 +80,140 @@ describe("BinPowerup", function()
             assert.matches("options must be a table", err)
         end)
 
-        it("should reject invalid bin_dir option", function()
+        it("should reject invalid bin_dir option type", function() {
             local options = { bin_dir = 123 }
             local valid, err = powerup:validate({}, "/pack", options)
             assert.is_false(valid)
             assert.is_not_nil(err)
-            assert.matches("bin_dir must be a string", err)
+            assert.matches("options.bin_dir must be a string", err)
         end)
 
-        it("should reject invalid add_to_path option", function()
-            local options = { add_to_path = "true" }
-            local valid, err = powerup:validate({}, "/pack", options)
-            assert.is_false(valid)
-            assert.is_not_nil(err)
-            assert.matches("add_to_path must be a boolean", err)
-        end)
-
-        it("should reject invalid make_executable option", function()
-            local options = { make_executable = "true" }
-            local valid, err = powerup:validate({}, "/pack", options)
-            assert.is_false(valid)
-            assert.is_not_nil(err)
-            assert.matches("make_executable must be a boolean", err)
-        end)
-
-        it("should reject invalid filter_executables option", function()
-            local options = { filter_executables = "true" }
-            local valid, err = powerup:validate({}, "/pack", options)
-            assert.is_false(valid)
-            assert.is_not_nil(err)
-            assert.matches("filter_executables must be a boolean", err)
-        end)
-
-        it("should reject invalid shell option", function()
+        it("should reject invalid shell option type", function() {
             local options = { shell = 123 }
             local valid, err = powerup:validate({}, "/pack", options)
             assert.is_false(valid)
             assert.is_not_nil(err)
-            assert.matches("shell must be a string", err)
+            assert.matches("options.shell must be a string", err)
         end)
 
-        it("should reject file without path", function()
-            local matched_files = { { metadata = {} } }
-            local valid, err = powerup:validate(matched_files, "/pack", {})
+        it("should reject invalid prepend option type", function() {
+            local options = { prepend = "true" }
+            local valid, err = powerup:validate({}, "/pack", options)
             assert.is_false(valid)
             assert.is_not_nil(err)
-            assert.matches("must have a path string", err)
+            assert.matches("options.prepend must be a boolean", err)
         end)
-
-        it("should reject file outside pack_path", function()
-            local matched_files = {
-                { path = "/outside/script.sh", metadata = {} }
-            }
-            local valid, err = powerup:validate(matched_files, "/pack", {})
-            assert.is_false(valid)
-            assert.is_not_nil(err)
-            assert.matches("outside pack_path", err)
-        end)
+         -- Note: Validation for individual files (like path existence, type) is removed
+         -- as this powerup now focuses on directories for PATH.
     end)
 
     describe("process", function()
-        it("should return empty actions for empty matched_files", function()
-            local actions, err = powerup:process({}, "/pack", {})
+        it("should return empty actions if no path_to_add can be determined", function() {
+            local actions, err = powerup:process({}, "/pack", {}) -- No matched_files and no options.bin_dir
             assert.is_nil(err)
             assert.is_table(actions)
             assert.equals(0, #actions)
         end)
 
-        it("should return empty actions for nil matched_files", function()
-            local actions, err = powerup:process(nil, "/pack", {})
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(0, #actions)
-        end)
-
-        it("should generate bin symlink actions for executables", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} },
-                { path = "/pack/tool",      metadata = {} } -- no extension, should be considered executable
-            }
-            local pack_path = "/pack"
-            local options = { bin_dir = "~/.local/bin" }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(3, #actions) -- 2 symlinks + 1 PATH action
-
-            -- Check first symlink action
-            local action1 = actions[1]
-            assert.equals("bin_symlink", action1.type)
-            assert.equals("/pack/script.sh", action1.source_path)
-            assert.equals("/home/user/.local/bin/script.sh", action1.target_path)
-            assert.equals("/home/user/.local/bin", action1.bin_dir)
-            assert.is_true(action1.make_executable)
-            assert.equals("bin", action1.metadata.powerup)
-            assert.equals("bin_symlink", action1.metadata.action_type)
-            assert.equals("script.sh", action1.metadata.relative_source)
-
-            -- Check second symlink action
-            local action2 = actions[2]
-            assert.equals("bin_symlink", action2.type)
-            assert.equals("/pack/tool", action2.source_path)
-            assert.equals("/home/user/.local/bin/tool", action2.target_path)
-
-            -- Check PATH action
-            local action3 = actions[3]
-            assert.equals("bin_add_to_path", action3.type)
-            assert.equals("/home/user/.local/bin", action3.bin_dir)
-            assert.equals("bash", action3.shell) -- default shell
-            assert.equals("bin", action3.metadata.powerup)
-            assert.equals("add_to_path", action3.metadata.action_type)
-            assert.equals(2, action3.metadata.files_count)
-        end)
-
-        it("should filter non-executable files when filter_executables is true", function()
-            local matched_files = {
-                { path = "/pack/script.sh",  metadata = {} }, -- executable
-                { path = "/pack/readme.txt", metadata = {} }, -- not executable
-                { path = "/pack/tool",       metadata = {} }  -- executable (no extension)
-            }
-            local pack_path = "/pack"
-            local options = { filter_executables = true }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(3, #actions) -- 2 symlinks + 1 PATH action (readme.txt filtered out)
-
-            -- Verify only executables are processed
-            assert.equals("/pack/script.sh", actions[1].source_path)
-            assert.equals("/pack/tool", actions[2].source_path)
-        end)
-
-        it("should include all files when filter_executables is false", function()
-            local matched_files = {
-                { path = "/pack/script.sh",  metadata = {} },
-                { path = "/pack/readme.txt", metadata = {} },
-                { path = "/pack/tool",       metadata = {} }
-            }
-            local pack_path = "/pack"
-            local options = { filter_executables = false }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(4, #actions) -- 3 symlinks + 1 PATH action (all files included)
-        end)
-
-        it("should use default bin directory when not specified", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} }
-            }
-            local pack_path = "/pack"
-
-            local actions, err = powerup:process(matched_files, pack_path, {})
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(2, #actions) -- 1 symlink + 1 PATH action
-
-            local action = actions[1]
-            assert.equals("/home/user/.local/bin/script.sh", action.target_path)
-            assert.equals("/home/user/.local/bin", action.bin_dir)
-        end)
-
-        it("should expand tilde in bin_dir", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} }
-            }
-            local pack_path = "/pack"
-            local options = { bin_dir = "~/bin" }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(2, #actions)
-
-            local action = actions[1]
-            assert.equals("/home/user/bin/script.sh", action.target_path)
-            assert.equals("/home/user/bin", action.bin_dir)
-        end)
-
-        it("should respect make_executable option", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} }
-            }
-            local pack_path = "/pack"
-            local options = { make_executable = false }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(2, #actions)
-
-            local action = actions[1]
-            assert.is_false(action.make_executable)
-        end)
-
-        it("should skip PATH action when add_to_path is false", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} }
-            }
-            local pack_path = "/pack"
-            local options = { add_to_path = false }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(1, #actions) -- Only symlink action, no PATH action
-
-            local action = actions[1]
-            assert.equals("bin_symlink", action.type)
-        end)
-
-        it("should use specified shell for PATH action", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = {} }
-            }
-            local pack_path = "/pack"
+        it("should generate shell_add_path action using pack_path if matched_files present", function() {
+            local matched_files = { { path = "/my/dotfiles/common/bin/my_script", metadata = {} } }
+            local pack_path = "/my/dotfiles/common/bin" -- This is the directory to add
             local options = { shell = "zsh" }
 
             local actions, err = powerup:process(matched_files, pack_path, options)
             assert.is_nil(err)
             assert.is_table(actions)
-            assert.equals(2, #actions)
-
-            local path_action = actions[2]
-            assert.equals("bin_add_to_path", path_action.type)
-            assert.equals("zsh", path_action.shell)
-        end)
-
-        it("should handle multiple executable types", function()
-            local matched_files = {
-                { path = "/pack/script.sh",  metadata = {} },
-                { path = "/pack/program.py", metadata = {} },
-                { path = "/pack/tool.lua",   metadata = {} },
-                { path = "/pack/binary",     metadata = {} } -- no extension
-            }
-            local pack_path = "/pack"
-            local options = { filter_executables = true }
-
-            local actions, err = powerup:process(matched_files, pack_path, options)
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(5, #actions) -- 4 symlinks + 1 PATH action
-
-            -- All should be considered executable
-            assert.equals("bin_symlink", actions[1].type)
-            assert.equals("bin_symlink", actions[2].type)
-            assert.equals("bin_symlink", actions[3].type)
-            assert.equals("bin_symlink", actions[4].type)
-            assert.equals("bin_add_to_path", actions[5].type)
-        end)
-
-        it("should preserve original metadata", function()
-            local matched_files = {
-                { path = "/pack/script.sh", metadata = { type = "shell", version = "1.0" } }
-            }
-            local pack_path = "/pack"
-
-            local actions, err = powerup:process(matched_files, pack_path, {})
-            assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(2, #actions)
+            assert.equals(1, #actions)
 
             local action = actions[1]
-            assert.is_table(action.metadata.original_metadata)
-            assert.equals("shell", action.metadata.original_metadata.type)
-            assert.equals("1.0", action.metadata.original_metadata.version)
+            assert.equals("shell_add_path", action.type)
+            assert.is_string(action.description)
+            assert.matches("Add /my/dotfiles/common/bin to PATH", action.description)
+            assert.is_table(action.data)
+            assert.equals("/my/dotfiles/common/bin", action.data.path_to_add)
+            assert.equals("zsh", action.data.shell)
+            assert.is_false(action.data.prepend) -- Default
+            assert.equals("shell_add_path", action.metadata.powerup_name)
         end)
 
-        it("should skip PATH action when no files to process", function()
-            local matched_files = {
-                { path = "/pack/readme.txt", metadata = {} } -- not executable
-            }
-            local pack_path = "/pack"
-            local options = { filter_executables = true } -- will filter out readme.txt
+        it("should generate shell_add_path action using options.bin_dir if provided", function() {
+            local matched_files = {} -- Not used if bin_dir is present
+            local pack_path = "/my/dotfiles/common" -- Contextual
+            local options = { bin_dir = "~/.custom_bin", prepend = true }
 
             local actions, err = powerup:process(matched_files, pack_path, options)
             assert.is_nil(err)
-            assert.is_table(actions)
-            assert.equals(0, #actions) -- No actions since no executables
+            assert.equals(1, #actions)
+
+            local action = actions[1]
+            assert.equals("shell_add_path", action.type)
+            assert.is_string(action.description)
+            assert.matches("Prepend /home/user/.custom_bin to PATH", action.description)
+            assert.is_table(action.data)
+            assert.equals("/home/user/.custom_bin", action.data.path_to_add)
+            assert.equals("bash", action.data.shell) -- Default shell
+            assert.is_true(action.data.prepend)
+        end)
+
+        it("should prioritize options.bin_dir over pack_path from matched_files", function() {
+            local matched_files = { { path = "/pack/some_pack_bin/tool", metadata = {} } }
+            local pack_path = "/pack/some_pack_bin"
+            local options = { bin_dir = "/override/bin", shell = "fish" }
+
+            local actions, err = powerup:process(matched_files, pack_path, options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            local action = actions[1]
+            assert.is_table(action.data)
+            assert.equals("/override/bin", action.data.path_to_add)
+            assert.equals("fish", action.data.shell)
+        end)
+
+        it("should expand tilde in options.bin_dir", function() {
+            local options = { bin_dir = "~/mybin" }
+            local actions, err = powerup:process({}, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_table(actions[1].data)
+            assert.equals("/home/user/mybin", actions[1].data.path_to_add)
+        end)
+
+        it("should default prepend to false", function() {
+            local options = { bin_dir = "/usr/local/sbin" }
+            local actions, err = powerup:process({}, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_table(actions[1].data)
+            assert.is_false(actions[1].data.prepend)
+        end)
+
+        it("should detect shell if not specified in options", function() {
+            -- Mock os.getenv("SHELL") to return /bin/zsh for this test
+            local old_getenv = os.getenv
+            os.getenv = function(var) if var == "SHELL" then return "/bin/zsh" elseif var == "HOME" then return "/home/user" else return old_getenv(var) end end
+
+            local options = { bin_dir = "/opt/bin" }
+            local actions, err = powerup:process({}, "/pack", options)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            assert.is_table(actions[1].data)
+            assert.equals("zsh", actions[1].data.shell)
+
+            os.getenv = old_getenv -- Restore
+        end)
+
+        it("should handle nil options table gracefully", function() {
+            -- This will use pack_path derived from matched_files
+            local matched_files = { { path = "/pack/bin/tool", metadata = {} } }
+            local pack_path = "/pack/bin"
+            local actions, err = powerup:process(matched_files, pack_path, nil)
+            assert.is_nil(err)
+            assert.equals(1, #actions)
+            local action = actions[1]
+            assert.is_table(action.data)
+            assert.equals("/pack/bin", action.data.path_to_add)
+            assert.equals("bash", action.data.shell) -- default
+            assert.is_false(action.data.prepend)   -- default
         end)
     end)
 end)
