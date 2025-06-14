@@ -6,6 +6,9 @@
 -- This assumes the script is run from the project root
 package.path = "./lua/?.lua;./lua/?/init.lua;" .. package.path
 
+-- Initialize dodot (which sets up logging)
+require("dodot.init")
+
 local function print_usage()
     print("Usage: lua run_as_script.lua <command> <dotfiles_root> [args...]")
     print("")

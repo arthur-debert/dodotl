@@ -4,16 +4,19 @@ local M = {}
 M.setup_logging = function()
     local lual = require("lual")
 
+    -- Fix: Use the correct API method to enable internal debugging
+    require("lual.api")._set_internal_debug(true)
+
     lual.config({
         level = lual.info,
         pipelines = {
             {
                 level = lual.debug,
-                outputs = { type = lual.file, path = "/tmp/dodot.log" }
+                outputs = { lual.file({ path = "/tmp/dodot.log" }) }
             },
             {
                 level = lual.debug,
-                outputs = { type = lual.console },
+                outputs = { lual.console },
                 presenters = { lual.color }
             }
         },

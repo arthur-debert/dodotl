@@ -2,6 +2,7 @@
 local types = require("dodot.types")
 local errors = require("dodot.errors")
 local pl_path = require("pl.path")
+local logger = require("lual").logger("dodot.core.get_fs_ops")
 
 local M = {}
 
@@ -155,16 +156,21 @@ local action_to_op_builder = {
     end,
 
     shell_add_path = function(action)
+        logger.debug("building shell_add_path operations")
         -- Build operations for shell_add_path action
         if not action.data or not action.data.path_to_add or not action.data.shell then
+            logger.debug("invalid shell_add_path action data: missing path_to_add or shell")
             return nil,
                 errors.create("INVALID_ACTION_DATA", { "shell_add_path", "Missing path_to_add or shell in data" })
         end
 
+        logger.debug("shell_add_path: path=%s, shell=%s", action.data.path_to_add, action.data.shell)
         local home_dir = get_home_directory()
         if not home_dir then
+            logger.debug("shell_add_path: user home directory not found")
             return nil, errors.create("MISSING_HOME_DIR", { "shell_add_path", "User home directory not found" })
         end
+        logger.debug("shell_add_path: home directory=%s", home_dir)
 
         -- Determine shell profile file
         local shell_profiles = {
@@ -175,24 +181,31 @@ local action_to_op_builder = {
 
         local profile_file = shell_profiles[action.data.shell]
         if not profile_file then
+            logger.debug("shell_add_path: unsupported shell: %s", action.data.shell)
             return nil,
                 errors.create("UNSUPPORTED_SHELL", { "shell_add_path", "Unsupported shell: " .. action.data.shell })
         end
+        logger.debug("shell_add_path: profile file=%s", profile_file)
 
         local profile_path = pl_path.join(home_dir, profile_file)
+        logger.debug("shell_add_path: profile path=%s", profile_path)
 
         -- Create export command
         local path_cmd
         if action.data.prepend then
             path_cmd = "export PATH=\"" .. action.data.path_to_add .. ":$PATH\""
+            logger.debug("shell_add_path: prepending to PATH")
         else
             path_cmd = "export PATH=\"$PATH:" .. action.data.path_to_add .. "\""
+            logger.debug("shell_add_path: appending to PATH")
         end
+        logger.debug("shell_add_path: PATH command=%s", path_cmd)
 
         -- Add comment for identification
         local path_addition = "\n# Added by dodot for PATH management\n" .. path_cmd .. "\n"
 
         local ops = {}
+        logger.debug("shell_add_path: generating operations")
 
         -- Ensure parent directory exists (for fish config)
         if action.data.shell == "fish" then
@@ -216,6 +229,7 @@ local action_to_op_builder = {
             }
         })
 
+        logger.debug("shell_add_path: generated %d operations", #ops)
         return ops, nil
     end,
 
@@ -227,33 +241,44 @@ local action_to_op_builder = {
 }
 
 function M.get_fs_ops(actions_list)
+    logger.debug("get_fs_ops called with %d actions", actions_list and #actions_list or 0)
     local operations = {}
-    if not actions_list then return operations, nil end
+    if not actions_list then
+        logger.debug("no actions provided, returning empty operations")
+        return operations, nil
+    end
 
-    for _, action in ipairs(actions_list) do
+    for i, action in ipairs(actions_list) do
+        logger.debug("processing action %d: type=%s", i, action and action.type or "nil")
         if not action or not action.type then
-            print("Warning: Skipping malformed action (missing type or action itself is nil).")
+            logger.debug("skipping malformed action %d (missing type or action itself is nil)", i)
         else
             local builder = action_to_op_builder[action.type]
             if builder then
+                logger.debug("found builder for action type: %s", action.type)
                 local success, result = pcall(builder, action)
                 if success then
                     if type(result) == "table" and result.message and result.code then
-                        print("Error building ops for action type " .. action.type .. ": " .. result.message)
+                        logger.debug("error building ops for action type %s: %s", action.type, result.message)
                     elseif type(result) == "table" then
-                        for _, op in ipairs(result) do
+                        logger.debug("action type %s generated %d operations", action.type, #result)
+                        for j, op in ipairs(result) do
+                            logger.debug("adding operation %d: type=%s", j, op.type or "unknown")
                             table.insert(operations, op)
                         end
                         -- else: builder might validly return nil or non-table if no ops for valid action data
+                    else
+                        logger.debug("action type %s builder returned non-table result: %s", action.type, type(result))
                     end
                 else
-                    print("Critical error in builder for action type " .. action.type .. ": " .. tostring(result))
+                    logger.debug("critical error in builder for action type %s: %s", action.type, tostring(result))
                 end
             else
-                print("Warning: No operation builder found for action type: " .. action.type)
+                logger.debug("no operation builder found for action type: %s", action.type)
             end
         end
     end
+    logger.debug("get_fs_ops returning %d total operations", #operations)
     return operations, nil
 end
 
