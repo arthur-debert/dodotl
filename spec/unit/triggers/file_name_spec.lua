@@ -113,18 +113,20 @@ describe("FileNameTrigger", function()
 
         it("should reject invalid options.exclude_patterns type", function()
             local trigger = FileNameTrigger.new("*.txt", { exclude_patterns = "string.tmp" })
-            -- This error is caught by FileNameTrigger.new now
-            local trig_instance, err_new = FileNameTrigger.new("*.txt", { exclude_patterns = "string.tmp" })
-            assert.is_nil(trig_instance)
-            assert.is_not_nil(err_new)
-            assert.matches("exclude_patterns must be a table of strings", err_new:lower())
+            assert.is_not_nil(trigger) -- Creation should now succeed
+            local valid, err = trigger:validate()
+            assert.is_false(valid)
+            assert.is_not_nil(err)
+            assert.matches("exclude_patterns must be a table of strings", err)
         end)
 
         it("should reject invalid pattern in options.exclude_patterns", function()
-            local trig_instance, err_new = FileNameTrigger.new("*.txt", { exclude_patterns = { "" } })
-            assert.is_nil(trig_instance)
-            assert.is_not_nil(err_new)
-            assert.matches("exclude pattern at index 1 must be a non%-empty string", err_new:lower())
+            local trigger = FileNameTrigger.new("*.txt", { exclude_patterns = { "" } })
+            assert.is_not_nil(trigger) -- Creation should now succeed
+            local valid, err = trigger:validate()
+            assert.is_false(valid)
+            assert.is_not_nil(err)
+            assert.matches("Exclude pattern at index 1 must be a non%-empty string", err)
         end)
     end)
 

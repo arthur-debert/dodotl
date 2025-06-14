@@ -167,16 +167,24 @@ function FileNameTrigger.new(patterns, options)
     local compiled_patterns = {}
     for _, p_str in ipairs(patterns_table) do
         -- Use default case sensitivity for compilation if invalid option provided
-        local case_sensitive_for_compilation = type(instance_options.case_sensitive) == "boolean" and
-        instance_options.case_sensitive or true
+        local case_sensitive_for_compilation
+        if type(instance_options.case_sensitive) == "boolean" then
+            case_sensitive_for_compilation = instance_options.case_sensitive
+        else
+            case_sensitive_for_compilation = true
+        end
         table.insert(compiled_patterns, create_lua_pattern(p_str, case_sensitive_for_compilation))
     end
 
     local compiled_exclude_patterns = {}
     for _, p_str in ipairs(exclude_patterns_for_compilation) do
         -- Use default case sensitivity for compilation if invalid option provided
-        local case_sensitive_for_compilation = type(instance_options.case_sensitive) == "boolean" and
-            instance_options.case_sensitive or true
+        local case_sensitive_for_compilation
+        if type(instance_options.case_sensitive) == "boolean" then
+            case_sensitive_for_compilation = instance_options.case_sensitive
+        else
+            case_sensitive_for_compilation = true
+        end
         table.insert(compiled_exclude_patterns, create_lua_pattern(p_str, case_sensitive_for_compilation))
     end
 

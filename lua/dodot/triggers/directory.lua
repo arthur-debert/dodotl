@@ -2,7 +2,7 @@
 -- Matches files based on directory path patterns, with options for filesystem checks.
 
 local pl_path = require("pl.path") -- For path manipulation, though not strictly used in this version
-local posix = require("posix")     -- For filesystem checks like access()
+-- Use global posix to allow for test mocking
 local M = {}
 
 local function create_glob_pattern(pattern)
@@ -87,12 +87,14 @@ local DirectoryTrigger = {
 
         -- Filesystem checks (using the original absolute file_path for these)
         if self.options.must_exist then
+            local posix = _G.posix or require("posix")
             if not posix.access(file_path, "f") then
                 return false, nil -- Directory does not exist
             end
         end
 
         if self.options.must_be_executable then
+            local posix = _G.posix or require("posix")
             if not posix.access(file_path, "x") then
                 return false, nil -- Directory not executable
             end
