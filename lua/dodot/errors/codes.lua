@@ -24,6 +24,7 @@ local M = {
         -- Trigger/Matcher Errors
         "INVALID_TRIGGER_CONFIG",
         "TRIGGER_VALIDATION_FAILED",
+        "TRIGGER_NOT_FOUND",
         "MATCHER_CONFLICT",
 
         -- Power-up Errors
@@ -36,6 +37,7 @@ local M = {
         "FILE_NOT_FOUND",
         "SYMLINK_FAILED",
         "FSYNTH_OPERATION_FAILED",
+        "INVALID_ACTION_DATA",
 
         -- CLI Errors
         "INVALID_COMMAND_ARGS",
@@ -69,6 +71,7 @@ local M = {
         -- Trigger/Matcher Errors
         INVALID_TRIGGER_CONFIG = "Invalid trigger in %s: %s",
         TRIGGER_VALIDATION_FAILED = "Trigger validation failed for %s: %s",
+        TRIGGER_NOT_FOUND = "Trigger not found: %s",
         MATCHER_CONFLICT = "Matcher conflict between %s and %s",
 
         -- Power-up Errors
@@ -81,6 +84,7 @@ local M = {
         FILE_NOT_FOUND = "File not found: %s",
         SYMLINK_FAILED = "Failed to create symlink from %s to %s",
         FSYNTH_OPERATION_FAILED = "File system operation failed: %s",
+        INVALID_ACTION_DATA = "Invalid action data for type %s: %s",
 
         -- CLI Errors
         INVALID_COMMAND_ARGS = "Invalid command arguments: %s",
