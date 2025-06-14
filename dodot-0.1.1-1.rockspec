@@ -21,7 +21,7 @@ dependencies = {
   "dkjson >= 2.5", -- For JSON file support
   "lyaml >= 6.2", -- For YAML file support
   "fsynth >= 0.1.3", -- File system operations and safety
-  "melt >= 0.1.2", -- Configuration merging and hierarchy
+  "melt >= 0.1.3", -- Configuration merging and hierarchy
 }
 test_dependencies = {
   "busted >= 2.0.0",
