@@ -5,3 +5,5 @@ local
 nvimrc/scratchpads/
 nvimrc/todos/
 tmp
+.luarocks
+coverage

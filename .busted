@@ -1,0 +1,52 @@
+return {
+  default = {
+    ["coverage"] = false,
+    ["ROOT"] = {
+      "spec/",
+    },
+    ["output"] = "utfTerminal",
+    ["verbose"] = true,
+    ["lua"] = "lua",
+    ["lpath"] =
+    "lua/?.lua;lua/?/init.lua;/Users/adebert/h/lua/fsynth.lua/?.lua;/Users/adebert/h/lua/fsynth.lua/?/init.lua;/Users/adebert/h/lua/lua.melt/?.lua;/Users/adebert/h/lua/lua.melt/lua/?.lua",
+  },
+
+  -- Unit tests only (fast)
+  unit = {
+    ["coverage"] = false,
+    ["ROOT"] = {
+      "spec/unit/",
+    },
+    ["output"] = "utfTerminal",
+    ["verbose"] = true,
+    ["lua"] = "lua",
+    ["lpath"] =
+    "lua/?.lua;lua/?/init.lua;/Users/adebert/h/lua/fsynth.lua/?.lua;/Users/adebert/h/lua/fsynth.lua/?/init.lua;/Users/adebert/h/lua/lua.melt/?.lua;/Users/adebert/h/lua/lua.melt/lua/?.lua",
+  },
+
+  -- Integration tests
+  integration = {
+    ["coverage"] = false,
+    ["ROOT"] = {
+      "spec/integration/",
+    },
+    ["output"] = "utfTerminal",
+    ["verbose"] = true,
+    ["lua"] = "lua",
+    ["lpath"] =
+    "lua/?.lua;lua/?/init.lua;/Users/adebert/h/lua/fsynth.lua/?.lua;/Users/adebert/h/lua/fsynth.lua/?/init.lua;/Users/adebert/h/lua/lua.melt/?.lua;/Users/adebert/h/lua/lua.melt/lua/?.lua",
+  },
+
+  -- End-to-end tests
+  e2e = {
+    ["coverage"] = false,
+    ["ROOT"] = {
+      "spec/e2e/",
+    },
+    ["output"] = "utfTerminal",
+    ["verbose"] = true,
+    ["lua"] = "lua",
+    ["lpath"] =
+    "lua/?.lua;lua/?/init.lua;/Users/adebert/h/lua/fsynth.lua/?.lua;/Users/adebert/h/lua/fsynth.lua/?/init.lua;/Users/adebert/h/lua/lua.melt/?.lua;/Users/adebert/h/lua/lua.melt/lua/?.lua",
+  }
+}
