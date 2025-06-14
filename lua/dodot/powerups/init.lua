@@ -3,6 +3,7 @@
 
 local symlink = require("dodot.powerups.symlink")
 local profile = require("dodot.powerups.profile")
+local bin = require("dodot.powerups.bin")
 
 local M = {}
 
@@ -31,8 +32,8 @@ function M.register_powerups(registry)
     -- Phase 3.4: Profile power-up
     registry.add("profile", profile.ProfilePowerup)
 
-    -- Phase 3.5 deliverable will add:
-    -- - Bin power-up
+    -- Phase 3.5: Bin power-up
+    registry.add("bin", bin.BinPowerup)
 
     -- Keep stub for backward compatibility
     registry.add("stub_symlink_powerup", StubSymlinkPowerUp)
