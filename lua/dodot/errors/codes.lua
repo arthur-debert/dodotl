@@ -38,6 +38,9 @@ local M = {
         "SYMLINK_FAILED",
         "FSYNTH_OPERATION_FAILED",
         "INVALID_ACTION_DATA",
+        "UNKNOWN_OPERATION_TYPE",
+        "EXECUTION_FAILED",
+        "VALIDATION_FAILED",
         -- "MISSING_HOME_DIR", -- Removed duplicate, will keep the one under System Errors for clarity
 
         -- CLI Errors
@@ -88,6 +91,9 @@ local M = {
         SYMLINK_FAILED = "Failed to create symlink from %s to %s",
         FSYNTH_OPERATION_FAILED = "File system operation failed: %s",
         INVALID_ACTION_DATA = "Invalid action data for type %s: %s",
+        UNKNOWN_OPERATION_TYPE = "Unknown operation type: %s",
+        EXECUTION_FAILED = "Execution failed: %s",
+        VALIDATION_FAILED = "Validation failed: %s",
         -- MISSING_HOME_DIR = "User home directory could not be determined.", -- Removed shorter message
 
         -- CLI Errors
