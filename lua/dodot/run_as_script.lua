@@ -64,37 +64,32 @@ local function parse_args(args)
 end
 
 local function run_deploy(dotfiles_root, pack_names, options)
-    print("🚀 Running deploy command...")
-    print("📁 Dotfiles root: " .. dotfiles_root)
-
-    if options.dry_run then
-        print("🔍 DRY RUN MODE - No changes will be made")
-    end
-
-    if options.verbose then
-        print("📝 Verbose mode enabled")
-    end
-
     -- Import core modules
     local get_packs = require("dodot.core.get_packs")
     local get_firing_triggers = require("dodot.core.get_firing_triggers")
     local get_actions = require("dodot.core.get_actions")
     local get_fs_ops = require("dodot.core.get_fs_ops")
     local run_ops = require("dodot.core.run_ops")
+    local ui = require("dodot.ui")
+
+    -- Initialize report structure
+    local report = {
+        dotfiles_root = dotfiles_root,
+        dry_run = options.dry_run,
+        verbose = options.verbose,
+        packs = {},
+        trigger_matches = {},
+        actions = {},
+        fs_ops = {},
+        warnings = {},
+        success = false
+    }
 
     -- Step 1: Get pack candidates and validate packs
-    print("\n📦 Step 1: Discovering packs...")
     local pack_candidates, err = get_packs.get_pack_candidates(dotfiles_root)
     if err then
         print("❌ Error getting pack candidates: " .. tostring(err))
         return false
-    end
-
-    print("   Found " .. #pack_candidates .. " pack candidates")
-    if options.verbose then
-        for _, candidate in ipairs(pack_candidates) do
-            print("   - " .. candidate)
-        end
     end
 
     local packs, err = get_packs.get_packs(pack_candidates)
@@ -121,72 +116,59 @@ local function run_deploy(dotfiles_root, pack_names, options)
         end
 
         packs = filtered_packs
-        print("   Filtered to " .. #packs .. " requested packs")
     end
 
-    print("   Processing " .. #packs .. " packs:")
-    for _, pack in ipairs(packs) do
-        print("   - " .. pack.name .. " (" .. pack.path .. ")")
-    end
+    report.packs = packs
 
     -- Step 2: Get firing triggers
-    print("\n🎯 Step 2: Finding firing triggers...")
     local trigger_matches, err = get_firing_triggers.get_firing_triggers(packs)
     if err then
         print("❌ Error getting firing triggers: " .. tostring(err))
         return false
     end
 
-    print("   Found " .. #trigger_matches .. " trigger matches")
-    for _, match in ipairs(trigger_matches) do
-        print("   - " .. match.trigger_name .. " → " .. match.power_up_name .. " (" .. match.file_path .. ")")
-    end
+    report.trigger_matches = trigger_matches
 
     -- Step 3: Generate actions
-    print("\n⚡ Step 3: Generating actions...")
     local actions, err = get_actions.get_actions(trigger_matches)
     if err then
         print("❌ Error generating actions: " .. tostring(err))
         return false
     end
 
-    print("   Generated " .. #actions .. " actions")
-    for _, action in ipairs(actions) do
-        print("   - " .. action.type .. ": " .. action.description)
-    end
+    report.actions = actions
 
     -- Step 4: Create filesystem operations
-    print("\n💾 Step 4: Planning filesystem operations...")
     local operations, err = get_fs_ops.get_fs_ops(actions)
     if err then
         print("❌ Error creating filesystem operations: " .. tostring(err))
         return false
     end
 
-    print("   Created " .. #operations .. " filesystem operations")
-    if options.verbose or options.dry_run then
-        for _, op in ipairs(operations) do
-            print("   - " .. op.type .. ": " .. op.description)
-        end
-    end
+    -- Capture warnings from fs_ops creation
+    local warnings = {}
+    -- For now, we'll capture warnings by checking if they were printed
+    -- In a more complete implementation, get_fs_ops would return warnings
+    report.fs_ops = operations
+    report.warnings = warnings
 
     -- Step 5: Execute operations (unless dry run)
     if not options.dry_run then
-        print("\n🔧 Step 5: Executing operations...")
         local success, err = run_ops.run_ops(operations)
         if err then
             print("❌ Error executing operations: " .. tostring(err))
             return false
         end
-
-        if success then
-            print("✅ Deploy completed successfully!")
-        else
-            print("⚠️  Deploy completed with warnings")
-        end
+        report.success = success
     else
-        print("\n🔍 Dry run complete - no changes made")
-        print("   Would have executed " .. #operations .. " operations")
+        report.success = true -- Dry run is always successful
+    end
+
+    -- Display results using UI module
+    if options.verbose then
+        ui.print_deploy_verbose(report)
+    else
+        ui.print_deploy_concise(report)
     end
 
     return true

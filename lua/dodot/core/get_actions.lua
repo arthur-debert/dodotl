@@ -38,6 +38,7 @@ local function group_trigger_matches(trigger_matches_list)
             grouped[group_key] = {
                 power_up_name = match.power_up_name,
                 pack_path = match.pack_path,
+                pack_name = match.pack_name,
                 options = match.options,
                 matches_payload = {}
             }
@@ -122,10 +123,14 @@ function M.get_actions(trigger_matches_list)
                 if not action_data.pack_source then
                     action_data.pack_source = pack_source_name_for_action
                 end
+                -- Add pack_name to action metadata for UI grouping
+                action_data.metadata = action_data.metadata or {}
+                action_data.metadata.pack_name = group_info.pack_name
+                action_data.metadata.power_up_name = group_info.power_up_name
                 -- Potentially validate action_data against types.is_action if available
                 table.insert(all_actions, action_data)
-                logger.debug("action %d: type=%s, description=%s", i, action_data.type or "unknown",
-                action_data.description or "no description")
+                logger.debug("action %d: type=%s, description=%s, pack=%s", i, action_data.type or "unknown",
+                    action_data.description or "no description", group_info.pack_name or "unknown")
             end
         else
             logger.debug("powerup %s generated no actions (nil result)", group_info.power_up_name)
