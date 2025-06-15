@@ -6,37 +6,117 @@ local registry = require("dodot.matchers.registry")
 
 local M = {}
 
--- Create default matcher configurations
+-- Create default matcher configurations according to design spec
 local function create_default_matchers()
     local default_configs = {
+        -- Fixed-name matchers (highest priority)
         {
-            matcher_name = "vim_config_matcher",
+            matcher_name = "alias_files_matcher",
             trigger_name = "file_name",
-            power_up_name = "symlink",
-            priority = 20,
+            power_up_name = "shell_profile",
+            priority = 10,
             options = {
-                pattern = "*.vim",
-                target_dir = "~/.vim"
+                pattern = "alias.*",
+                action_type = "source"
             }
         },
         {
-            matcher_name = "dotfile_matcher",
+            matcher_name = "profile_files_matcher",
             trigger_name = "file_name",
-            power_up_name = "symlink",
+            power_up_name = "shell_profile",
             priority = 15,
             options = {
-                pattern = ".*rc",
+                pattern = "profile.*",
+                action_type = "source"
+            }
+        },
+        {
+            matcher_name = "vars_files_matcher",
+            trigger_name = "file_name",
+            power_up_name = "shell_profile",
+            priority = 20,
+            options = {
+                pattern = "vars.*",
+                action_type = "export_vars"
+            }
+        },
+        {
+            matcher_name = "env_files_matcher",
+            trigger_name = "file_name",
+            power_up_name = "shell_profile",
+            priority = 25,
+            options = {
+                pattern = "env.*",
+                action_type = "export_vars"
+            }
+        },
+        {
+            matcher_name = "bin_directory_matcher",
+            trigger_name = "directory",
+            power_up_name = "shell_add_path",
+            priority = 30,
+            options = {
+                pattern = "bin"
+            }
+        },
+        {
+            matcher_name = "brewfile_matcher",
+            trigger_name = "file_name",
+            power_up_name = "brew",
+            priority = 35,
+            options = {
+                pattern = "Brewfile"
+            }
+        },
+        {
+            matcher_name = "install_scripts_matcher",
+            trigger_name = "file_name",
+            power_up_name = "script_runner",
+            priority = 40,
+            options = {
+                pattern = "install.*",
+                order = 100 -- Run after Brewfile
+            }
+        },
+        -- Catch-all symlink matchers (lower priority)
+        {
+            matcher_name = "home_directory_matcher",
+            trigger_name = "directory",
+            power_up_name = "symlink",
+            priority = 90,
+            options = {
+                pattern = "HOME",
                 target_dir = "~"
             }
         },
         {
-            matcher_name = "config_dir_matcher",
+            matcher_name = "home_directory_lowercase_matcher",
             trigger_name = "directory",
             power_up_name = "symlink",
-            priority = 10,
+            priority = 91,
             options = {
-                pattern = "config/**",
+                pattern = "home",
+                target_dir = "~"
+            }
+        },
+        {
+            matcher_name = "config_directory_matcher",
+            trigger_name = "directory",
+            power_up_name = "symlink",
+            priority = 95,
+            options = {
+                pattern = "*", -- Match any directory not caught by higher priority matchers
                 target_dir = "~/.config"
+            }
+        },
+        {
+            matcher_name = "dotfiles_matcher",
+            trigger_name = "file_name",
+            power_up_name = "symlink",
+            priority = 100,
+            options = {
+                pattern = ".*", -- Match any files not caught by higher priority matchers (dot files)
+                target_dir = "~"
             }
         }
     }
@@ -80,54 +160,25 @@ end
 function M.get_simulated_matchers()
     -- Return real matcher configurations that should work with the test fixtures
     return {
-        {
-            matcher_name = "gitconfig_matcher",
-            trigger_name = "file_name",
-            power_up_name = "symlink",
-            priority = 5,
-            options = {
-                pattern = ".gitconfig",
-                target_dir = "~"
-            }
-        },
-        {
-            matcher_name = "gitignore_matcher",
-            trigger_name = "file_name",
-            power_up_name = "symlink",
-            priority = 6,
-            options = {
-                pattern = ".gitignore",
-                target_dir = "~"
-            }
-        },
-        {
-            matcher_name = "dotfiles_matcher",
-            trigger_name = "file_name",
-            power_up_name = "symlink",
-            priority = 10,
-            options = {
-                pattern = ".git*", -- Match .gitconfig, .gitignore, etc.
-                target_dir = "~"
-            }
-        },
-        {
-            matcher_name = "config_dirs_matcher",
-            trigger_name = "directory",
-            power_up_name = "symlink",
-            priority = 15,
-            options = {
-                pattern = "nvim",
-                target_dir = "~/.config"
-            }
-        },
+        -- Fixed-name matchers (high priority)
         {
             matcher_name = "alias_files_matcher",
             trigger_name = "file_name",
             power_up_name = "shell_profile",
+            priority = 10,
+            options = {
+                pattern = "alias.*",
+                action_type = "source"
+            }
+        },
+        {
+            matcher_name = "vars_files_matcher",
+            trigger_name = "file_name",
+            power_up_name = "shell_profile",
             priority = 20,
             options = {
-                pattern = "alias.sh",
-                action_type = "source"
+                pattern = "vars.*",
+                action_type = "export_vars"
             }
         },
         {
@@ -136,17 +187,17 @@ function M.get_simulated_matchers()
             power_up_name = "shell_profile",
             priority = 25,
             options = {
-                pattern = "env.sh",
-                action_type = "source"
+                pattern = "env.*",
+                action_type = "export_vars"
             }
         },
         {
-            matcher_name = "vars_files_matcher",
+            matcher_name = "profile_files_matcher",
             trigger_name = "file_name",
             power_up_name = "shell_profile",
-            priority = 30,
+            priority = 26,
             options = {
-                pattern = "vars.sh",
+                pattern = "profile.*",
                 action_type = "source"
             }
         },
@@ -154,9 +205,59 @@ function M.get_simulated_matchers()
             matcher_name = "bin_dirs_matcher",
             trigger_name = "directory",
             power_up_name = "shell_add_path",
-            priority = 35,
+            priority = 30,
             options = {
                 pattern = "bin"
+            }
+        },
+        {
+            matcher_name = "brewfile_matcher",
+            trigger_name = "file_name",
+            power_up_name = "brew",
+            priority = 35,
+            options = {
+                pattern = "Brewfile"
+            }
+        },
+        {
+            matcher_name = "install_scripts_matcher",
+            trigger_name = "file_name",
+            power_up_name = "script_runner",
+            priority = 40,
+            options = {
+                pattern = "install.*",
+                order = 100
+            }
+        },
+        -- Catch-all symlink matchers (lower priority)
+        {
+            matcher_name = "home_directory_matcher",
+            trigger_name = "directory",
+            power_up_name = "symlink",
+            priority = 85,
+            options = {
+                pattern = "HOME",
+                target_dir = "~"
+            }
+        },
+        {
+            matcher_name = "config_dirs_matcher",
+            trigger_name = "directory",
+            power_up_name = "symlink",
+            priority = 90,
+            options = {
+                pattern = "nvim",
+                target_dir = "~/.config"
+            }
+        },
+        {
+            matcher_name = "dotfiles_matcher",
+            trigger_name = "file_name",
+            power_up_name = "symlink",
+            priority = 95,
+            options = {
+                pattern = ".git*", -- Match .gitconfig, .gitignore, etc.
+                target_dir = "~"
             }
         }
     }, nil

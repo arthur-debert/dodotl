@@ -7,7 +7,7 @@ This document describes the default matching configuration:
         profile.<sh,bash,zsh> -> profile power up
         vars.<sh,bash,zsh> -> vars power up
         bin/                            -> path power up
-        Brewfilw                    -> brew power up
+        Brewfile                    -> brew power up
         install.<sh,bash,zsh> -> gets executed on deploy, after Brewfile
 
     --
@@ -20,3 +20,5 @@ The symlink power up works a bit differently: any directory whose name is not cl
         - The entire directory gets linke to XDG_HOME , which is usually $HOME/.config
         - For example, if a nvim directory is inside it: 
             nvim/lua/init.lua -> $HOME/.config/nvim/lua/init.lua (the entire nvim dir gets linked to .config/<dirname> )
+
+One possible way to implement this is to have a unmatched trigger, a catchall of sortts, rights? 

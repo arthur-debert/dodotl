@@ -107,7 +107,13 @@ function M.get_firing_triggers(packs)
                 if matcher_config.trigger_name == "file_name" and matcher_config.options and matcher_config.options.pattern then
                     -- For file_name triggers, create instance with pattern from matcher options
                     logger.debug("creating file_name trigger with pattern: %s", matcher_config.options.pattern)
-                    trigger_instance = trigger_class.new(matcher_config.options.pattern)
+                    -- Pass both pattern and options to FileNameTrigger
+                    local trigger_options = {
+                        case_sensitive = matcher_config.options.case_sensitive,
+                        recursive = matcher_config.options.recursive,
+                        exclude_patterns = matcher_config.options.exclude_patterns
+                    }
+                    trigger_instance = trigger_class.new(matcher_config.options.pattern, trigger_options)
                 elseif matcher_config.trigger_name == "directory" and matcher_config.options and matcher_config.options.pattern then
                     -- For directory triggers, create instance with pattern from matcher options
                     logger.debug("creating directory trigger with pattern: %s", matcher_config.options.pattern)
@@ -140,7 +146,10 @@ function M.get_firing_triggers(packs)
                 end
 
                 logger.debug("calling match on trigger %s for item: %s", matcher_config.trigger_name, item_path)
-                local matched, metadata = trigger_instance:match(item_path, pack.path)
+                -- Ensure both paths are absolute for proper relative path calculation
+                local abs_item_path = pl_path.abspath(item_path)
+                local abs_pack_path = pl_path.abspath(pack.path)
+                local matched, metadata = trigger_instance:match(abs_item_path, abs_pack_path)
                 if matched then
                     logger.debug("MATCH FOUND! %s → %s (item: %s)", matcher_config.trigger_name,
                         matcher_config.power_up_name, item_path)
