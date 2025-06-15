@@ -5,6 +5,7 @@ local pl_path = require("pl.path")
 local logger = require("lual").logger("dodot.core.get_fs_ops")
 
 local M = {}
+M._test_home_directory = nil -- For testing purposes
 
 -- Constants for shell source paths
 local DODOT_SHELL_BASE_DIR_NAME = "dodot/shell"
@@ -12,9 +13,22 @@ local ALIASES_SUBDIR_NAME = "aliases"
 local PROFILE_SUBDIR_NAME = "profile_scripts"
 local INIT_SCRIPT_NAME = "init.sh"
 
--- Helper to get home directory, trying multiple environment variables
-local function get_home_directory()
+-- Original function to get the real home directory
+local function _get_real_home_directory()
     return os.getenv("HOME") or os.getenv("USERPROFILE")
+end
+
+-- New dispatcher function for get_home_directory
+function M.get_home_directory()
+    if M._test_home_directory then
+        return M._test_home_directory
+    end
+    return _get_real_home_directory()
+end
+
+-- Function to set a test home directory
+function M.set_test_home_directory(path)
+    M._test_home_directory = path
 end
 
 local function build_shell_source_ops(action)
@@ -24,7 +38,7 @@ local function build_shell_source_ops(action)
         return nil, errors.create("INVALID_ACTION_DATA", { "shell_source", "Missing source_file in data" })
     end
 
-    local home_dir = get_home_directory()
+    local home_dir = M.get_home_directory() -- Changed to use M.get_home_directory
     if not home_dir then
         -- This error should now be defined in errors/codes.lua
         return nil, errors.create("MISSING_HOME_DIR", { "shell_source", "User home directory not found" })
@@ -59,7 +73,7 @@ local function build_shell_source_ops(action)
     if action.pack_path and not pl_path.isabs(absolute_source_file) then
         absolute_source_file = pl_path.abspath(pl_path.join(action.pack_path, absolute_source_file))
     elseif not pl_path.isabs(absolute_source_file) then
-        print("Warning: shell_source source_file is not absolute and no pack_path provided: " .. absolute_source_file)
+        logger.warn("shell_source source_file is not absolute and no pack_path provided: " .. absolute_source_file)
     end
 
     table.insert(ops, {
@@ -109,6 +123,7 @@ end
 -- This dispatch table maps action types to functions that build fs operations.
 local action_to_op_builder = {
     link_stub = function(action)
+        -- primarily for testing specific symlink scenarios or older behavior
         -- Validate action.data structure for link_stub if needed
         if not action.data or not action.data.src or not action.data.dest then
             return nil, errors.create("INVALID_ACTION_DATA", { "link_stub", "Missing src or dest in data" })
@@ -165,7 +180,7 @@ local action_to_op_builder = {
         end
 
         logger.debug("shell_add_path: path=%s, shell=%s", action.data.path_to_add, action.data.shell)
-        local home_dir = get_home_directory()
+        local home_dir = M.get_home_directory() -- Changed to use M.get_home_directory
         if not home_dir then
             logger.debug("shell_add_path: user home directory not found")
             return nil, errors.create("MISSING_HOME_DIR", { "shell_add_path", "User home directory not found" })
@@ -236,7 +251,9 @@ local action_to_op_builder = {
     shell_source = build_shell_source_ops, -- Added shell_source builder
 
     -- Future action types would be added here
+    -- TODO: Implement brew_install operation builder
     -- brew_install = function(action) ... end,
+    -- TODO: Implement script_run operation builder
     -- script_run = function(action) ... end,
 }
 
@@ -259,7 +276,8 @@ function M.get_fs_ops(actions_list)
                 local success, result = pcall(builder, action)
                 if success then
                     if type(result) == "table" and result.message and result.code then
-                        logger.debug("error building ops for action type %s: %s", action.type, result.message)
+                        -- This is a controlled error from a builder
+                        logger.error("Controlled error from builder for action type %s: %s (Code: %s)", action.type, result.message, result.code or "N/A")
                     elseif type(result) == "table" then
                         logger.debug("action type %s generated %d operations", action.type, #result)
                         for j, op in ipairs(result) do
@@ -271,10 +289,11 @@ function M.get_fs_ops(actions_list)
                         logger.debug("action type %s builder returned non-table result: %s", action.type, type(result))
                     end
                 else
-                    logger.debug("critical error in builder for action type %s: %s", action.type, tostring(result))
+                    -- This is an unexpected/critical error in the builder itself
+                    logger.error("Unexpected critical error in builder for action type %s: %s", action.type, tostring(result))
                 end
             else
-                logger.debug("no operation builder found for action type: %s", action.type)
+                logger.warn("no operation builder found for action type: %s", action.type)
             end
         end
     end
