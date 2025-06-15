@@ -6,7 +6,7 @@ M.setup_logging = function()
 
     -- Fix: Use the correct API method to enable internal debugging
     lual.config({
-        level = lual.debug,
+        level = lual.info,
         pipelines = {
             {
                 level = lual.debug,
@@ -15,7 +15,7 @@ M.setup_logging = function()
             {
                 level = lual.debug,
                 outputs = { { lual.console } },
-                presenters = { lual.color }
+                presenter = { lual.color() }
             }
         },
         command_line_verbosity = {

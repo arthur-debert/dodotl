@@ -138,10 +138,8 @@ local function run_deploy(dotfiles_root, pack_names, options)
     end
 
     print("   Found " .. #trigger_matches .. " trigger matches")
-    if options.verbose then
-        for _, match in ipairs(trigger_matches) do
-            print("   - " .. match.trigger_name .. " → " .. match.power_up_name .. " (" .. match.file_path .. ")")
-        end
+    for _, match in ipairs(trigger_matches) do
+        print("   - " .. match.trigger_name .. " → " .. match.power_up_name .. " (" .. match.file_path .. ")")
     end
 
     -- Step 3: Generate actions
@@ -153,10 +151,8 @@ local function run_deploy(dotfiles_root, pack_names, options)
     end
 
     print("   Generated " .. #actions .. " actions")
-    if options.verbose then
-        for _, action in ipairs(actions) do
-            print("   - " .. action.type .. ": " .. action.description)
-        end
+    for _, action in ipairs(actions) do
+        print("   - " .. action.type .. ": " .. action.description)
     end
 
     -- Step 4: Create filesystem operations
