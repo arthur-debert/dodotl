@@ -157,6 +157,7 @@ function M.get_firing_triggers(packs)
                         trigger_name = matcher_config.trigger_name,
                         file_path = item_path,
                         pack_path = pack.path,
+                        pack_name = pack.name,
                         metadata = metadata,
                         power_up_name = matcher_config.power_up_name,
                         priority = matcher_config.priority,
