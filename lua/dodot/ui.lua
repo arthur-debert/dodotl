@@ -13,7 +13,7 @@ local function format_label(text, width)
     return string.format("%-" .. width .. "s", text)
 end
 
--- Helper function to truncate pack names to 10 chars, right-justified
+-- Helper function to truncate pack names to 10 chars, left-aligned
 local function format_pack_name(pack_name, width)
     width = width or 10
     if not pack_name then pack_name = "" end
@@ -21,10 +21,10 @@ local function format_pack_name(pack_name, width)
     if #pack_name > width then
         pack_name = pack_name:sub(1, width)
     end
-    return string.format("%" .. width .. "s", pack_name)
+    return string.format("%-" .. width .. "s", pack_name)
 end
 
--- Helper function to truncate power-up names to 10 chars, left-padded
+-- Helper function to truncate power-up names to 10 chars, left-aligned
 local function format_powerup_name(powerup_name, width)
     width = width or 10
     if not powerup_name then return string.rep(" ", width) end
@@ -49,41 +49,53 @@ end
 local function action_to_description(action)
     local desc = action.description or ""
 
-    -- Extract filename from existing description
+    -- Extract more detailed path information from existing description
     if action.type == "shell_source" then
         if desc:match("Export variables") then
             local filename = desc:match("Export variables from ([^%s]+)")
             if filename then
+                local dirname = filename:match("([^/]+)/[^/]+$") or "pack"
                 local basename = filename:match("([^/]+)$") or filename
-                return "Export vars from " .. basename
+                return "Export vars from " .. dirname .. "/" .. basename
             end
             return "Export variables"
         else
             local filename = desc:match("Source ([^%s]+)")
             if filename then
+                local dirname = filename:match("([^/]+)/[^/]+$") or "pack"
                 local basename = filename:match("([^/]+)$") or filename
-                return "Source " .. basename
+                return "Source " .. dirname .. "/" .. basename
             end
             return "Source file"
         end
     elseif action.type == "shell_add_path" then
         local path = desc:match("Add ([^%s]+) to PATH")
         if path then
-            local basename = path:match("([^/]+)$") or "directory"
-            return "Add " .. basename .. " to $PATH"
+            local dirname = path:match("([^/]+)$") or "directory"
+            return "Add " .. dirname .. "/ to $PATH"
         end
-        return "Add to $PATH"
+        return "Add directory to $PATH"
     elseif action.type == "brew_install" then
+        local filename = desc:match("Process Brewfile ([^%s]+)")
+        if filename then
+            local dirname = filename:match("([^/]+)/[^/]+$") or "pack"
+            return "Process " .. dirname .. "/Brewfile"
+        end
         return "Process Brewfile"
     elseif action.type == "link" then
+        local source = desc:match("Link [^%s]+ ([^%s]+) to")
         local target = desc:match("to ([^%s]+)$")
-        if target then
+        if source and target then
+            local source_name = source:match("([^/]+)$") or source
             if target:match("/.config/") then
                 local config_path = target:match("/.config/(.+)")
-                return "Symlink to ~/.config/" .. (config_path or "")
+                return "Link " .. source_name .. " → ~/.config/" .. (config_path or "")
             elseif target:match("/%.") then
                 local home_file = target:match("/([^/]+)$")
-                return "Symlink to ~/" .. (home_file or "")
+                return "Link " .. source_name .. " → ~/" .. (home_file or "")
+            else
+                local target_name = target:match("([^/]+)$") or target
+                return "Link " .. source_name .. " → " .. target_name
             end
         end
         return "Create symlink"
