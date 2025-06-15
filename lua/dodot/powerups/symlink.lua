@@ -4,6 +4,38 @@
 local pl_path = require("pl.path")
 local M = {}
 
+-- Helper function to check if a path is a directory
+local function is_directory(path)
+    -- Try to use pl.path.isdir if available, otherwise use posix or fallback
+    if pl_path.isdir then
+        return pl_path.isdir(path)
+    else
+        -- Fallback using posix if available
+        local posix = _G.posix
+        if not posix then
+            local success, posix_module = pcall(require, "posix")
+            if success then
+                posix = posix_module
+            end
+        end
+
+        if posix and posix.stat then
+            local stat = posix.stat(path)
+            return stat and stat.type == "directory"
+        end
+
+        -- Final fallback: try to access as directory
+        local f = io.open(path, "r")
+        if f then
+            f:close()
+            return false -- It's a file
+        end
+        -- If we can't open it as a file, assume it might be a directory
+        -- This is not foolproof but better than nothing
+        return true
+    end
+end
+
 local SymlinkPowerup = {
     name = "symlink",
     type = "symlink_powerup",
@@ -19,44 +51,59 @@ local SymlinkPowerup = {
         local target_dir = options.target_dir or "~"
         local create_dirs = options.create_dirs
         if create_dirs == nil then create_dirs = true end -- default to true
-        local overwrite = options.overwrite or false -- default to false
-        local backup = options.backup or false       -- default to false
+        local overwrite = options.overwrite or false      -- default to false
+        local backup = options.backup or false            -- default to false
 
         local actions = {}
 
         for _, file_info in ipairs(matched_files) do
             local source_path = file_info.path
             local relative_path = pl_path.relpath(source_path, pack_path)
+            local basename = pl_path.basename(source_path)
+            local is_dir = is_directory(source_path)
 
             -- Handle different target directory patterns
             local target_path
             if target_dir == "~" then
                 -- Symlink to home directory
-                target_path = pl_path.join(os.getenv("HOME") or "~", "." .. pl_path.basename(source_path))
+                local home = os.getenv("HOME") or "~"
+                if is_dir then
+                    -- For directories, use the original name without dot prefix
+                    target_path = pl_path.join(home, basename)
+                else
+                    -- For files, add dot prefix (traditional dotfile behavior)
+                    target_path = pl_path.join(home, "." .. basename)
+                end
             elseif target_dir:match("^~/") then
                 -- Symlink to subdirectory of home
                 local sub_path = target_dir:sub(3) -- remove "~/"
-                target_path = pl_path.join(os.getenv("HOME") or "~", sub_path, pl_path.basename(source_path))
+                local home = os.getenv("HOME") or "~"
+                -- In subdirectories, use original name for both files and directories
+                target_path = pl_path.join(home, sub_path, basename)
             else
                 -- Absolute or relative target directory
-                target_path = pl_path.join(target_dir, pl_path.basename(source_path))
+                -- Use original name for both files and directories
+                target_path = pl_path.join(target_dir, basename)
             end
 
             -- Create the symlink action
+            local item_type = is_dir and "directory" or "file"
             local action = {
                 type = "link", -- Changed from "symlink"
-                description = "Link file " .. source_path .. " to " .. target_path,
+                description = "Link " .. item_type .. " " .. source_path .. " to " .. target_path,
                 data = {
                     source_path = source_path,
                     target_path = target_path,
                     create_dirs = create_dirs,
                     overwrite = overwrite,
                     backup = backup,
+                    is_directory = is_dir, -- Add metadata about whether this is a directory
                 },
                 metadata = {
                     powerup = "symlink", -- Keep internal powerup name for metadata if desired
                     relative_source = relative_path,
-                    original_metadata = file_info.metadata
+                    original_metadata = file_info.metadata,
+                    item_type = item_type,
                 }
             }
 

@@ -4,6 +4,8 @@
 local symlink = require("dodot.powerups.symlink")
 local profile = require("dodot.powerups.profile")
 local bin = require("dodot.powerups.bin")
+local brew = require("dodot.powerups.brew")
+local script_runner = require("dodot.powerups.script_runner")
 
 local M = {}
 
@@ -34,6 +36,12 @@ function M.register_powerups(registry)
 
     -- Phase 3.5: Bin power-up
     registry.add("shell_add_path", bin.ShellAddPathPowerup) -- Changed name and module field
+
+    -- Phase 7.2: Brew power-up (placeholder implementation)
+    registry.add("brew", brew.BrewPowerup)
+
+    -- Phase 7.3: Script runner power-up (placeholder implementation)
+    registry.add("script_runner", script_runner.ScriptRunnerPowerup)
 
     -- Keep stub for backward compatibility
     registry.add("stub_symlink_powerup", StubSymlinkPowerUp)
